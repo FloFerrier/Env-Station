@@ -21,7 +21,7 @@ DEBUG_DIR=$(BUILD_DIR)/debug
 HAL=libopencm3
 
 # OS ("FreeRTOS" or "baremetal")
-OS=baremetal
+OS=FreeRTOS
 
 # FreeRTOS config
 # heap implementation
