@@ -31,7 +31,17 @@ void vUART_Setup(void)
   nvic_enable_irq(NVIC_USART2_IRQ);
 }
 
-void RN4871_putchar(char c)
+int8_t xUART_Send(char* p_str)
 {
-   usart_send_blocking(USART2, (uint16_t)c);
+  if(p_str == 0)
+  {
+    return -1;
+  }
+
+  while(*p_str != 0)
+  {
+    usart_send_blocking(USART2, (uint16_t)*p_str);
+    p_str++;
+  }
+  return 0;
 }
