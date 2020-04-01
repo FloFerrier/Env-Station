@@ -8,9 +8,11 @@
 #include "task.h"
 #include "queue.h"
 
-#include "button.h"
-#include "led.h"
-#include "uart.h"
+#include "BSP/button.h"
+#include "BSP/led.h"
+#include "BSP/uart.h"
+
+#include "Debug/printf/printf.h"
 
 /* Necessary for FreeRTOS */
 uint32_t SystemCoreClock;
@@ -80,7 +82,8 @@ void vTask1(void *pvParameters)
 void vTask2(void *pvParameters)
 {
   vUART_Setup();
-  xUART_Send("Test UART\r\n");
+
+  printf("Debug Task 2\r\n");
 
   while(1)
   {

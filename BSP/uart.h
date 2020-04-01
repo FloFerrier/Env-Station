@@ -8,6 +8,6 @@
 #include <libopencm3/stm32/usart.h>
 
 void vUART_Setup(void);
-int8_t xUART_Send(char* p_str);
+void _putchar(char character);
 
 #endif /* UART_H */
