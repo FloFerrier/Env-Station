@@ -38,8 +38,8 @@ LDFLAGS+=$(patsubst %,-L%, $(LIB_PATH))
 LDFLAGS+=$(patsubst %,-l%, $(LIB_NAMES))
 
 
-SRC= $(wildcard *.c) $(wildcard BSP/*.c) $(wildcard Driver/BME680/*.c) $(wildcard Debug/printf/*.c)
-HDR= $(wildcard *.h) $(wildcard BSP/*.h) $(wildcard Driver/BME680/*.h) $(wildcard Debug/printf/*.h)
+SRC= $(wildcard *.c) $(wildcard BSP/*.c) $(wildcard Driver/GA1A1S202WP/*.c) $(wildcard Debug/printf/*.c)
+HDR= $(wildcard *.h) $(wildcard BSP/*.h) $(wildcard Driver/GA1A1S202WP/*.h) $(wildcard Debug/printf/*.h)
 OBJ= $(SRC:.c=.o)
 
 DEBUG_OBJ=$(addprefix $(DEBUG_DIR)/, $(OBJ))
