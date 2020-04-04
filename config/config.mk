@@ -48,7 +48,7 @@ CC_DEFINES=
 
 # link flags
 LD_OPT=-flto
-LDFLAGS=-Wl,--gc-sections -nostartfiles -lnosys -Xlinker -Map=output.map
+LDFLAGS=-Wl,--gc-sections -nostartfiles -lnosys -Xlinker -Map=output.map -lm
 
 # arch specific flags
 ARCH_FLAGS=-mcpu=$(MCU_CORE) -mthumb -msoft-float

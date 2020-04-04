@@ -12,17 +12,22 @@
 #include "BSP/led.h"
 #include "BSP/uart.h"
 #include "BSP/i2c.h"
+#include "BSP/adc.h"
 
+#include "Driver/GA1A1S202WP/ga1a1s202wp.h"
 #include "Driver/BME680/bme680.h"
+
 #include "Debug/printf/printf.h"
 
 /* Necessary for FreeRTOS */
 uint32_t SystemCoreClock;
 
 static TaskHandle_t xTask1 = NULL;
+static QueueHandle_t xQueue1 = NULL;
 
 static void vTask1(void *pvParameters);
 static void vTask2(void *pvParameters);
+static void vTask3(void *pvParameters);
 
 static void user_delay_ms(uint32_t period);
 
@@ -34,6 +39,7 @@ int main(void)
   /* Tasks Creation */
   BaseType_t task1_status = pdFALSE;
   BaseType_t task2_status = pdFALSE;
+  BaseType_t task3_status = pdFALSE;
 
   task1_status = xTaskCreate(vTask1,
                             "Task1",
@@ -49,9 +55,19 @@ int main(void)
                             configMAX_PRIORITIES-1,
                             NULL);
 
+  task3_status = xTaskCreate(vTask3,
+                            "Task3",
+                            configMINIMAL_STACK_SIZE,
+                            NULL,
+                            configMAX_PRIORITIES-1,
+                            NULL);
+
+  xQueue1 = xQueueCreate(10, sizeof(uint32_t));
 
   if((task1_status == pdPASS) &&
-     (task2_status == pdPASS))
+     (task2_status == pdPASS) &&
+     (task3_status == pdPASS) &&
+     (xQueue1 != NULL))
   {
     vTaskStartScheduler();
     taskENABLE_INTERRUPTS();
@@ -70,8 +86,22 @@ void exti15_10_isr(void)
   vTaskNotifyGiveFromISR(xTask1, &xHigherPriorityTaskWoken);
 }
 
+void adc_isr(void)
+{
+  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+  uint32_t raw_value = 0;
+
+  if(adc_get_flag(ADC1, ADC_SR_EOC))
+  {
+    adc_clear_flag(ADC1, ADC_SR_EOC);
+    raw_value = adc_read_regular(ADC1);
+    xQueueSendFromISR(xQueue1, &raw_value,&xHigherPriorityTaskWoken);
+  }
+}
+
 void vTask1(void *pvParameters)
 {
+  vUART_Setup();
   vLed_Setup();
   vPB_Setup();
 
@@ -85,10 +115,9 @@ void vTask1(void *pvParameters)
 
 void vTask2(void *pvParameters)
 {
-  vUART_Setup();
-  printf("Debug BME680\r\n");
-
   vI2C_Setup();
+
+  printf("Debug BME680\r\n");
 
   /* Initialization */
   struct bme680_dev bme680_chip;
@@ -224,6 +253,27 @@ void vTask2(void *pvParameters)
       printf("fail ...\r\n");
     }
     vTaskDelay(pdMS_TO_TICKS(1000));
+  }
+}
+
+void vTask3(void *pvParameters)
+{
+  vADC_Setup();
+
+  printf("Debug GA1A1S202WP\r\n");
+
+  uint32_t raw_value = 0;
+  uint32_t volt_value = 0;
+  double lux_value = 0;
+
+  while(1)
+  {
+    vTaskDelay(pdMS_TO_TICKS(2500));
+    adc_start_conversion_regular(ADC1);
+    xQueueReceive(xQueue1, &raw_value, portMAX_DELAY);
+    volt_value = xAdcRawToVolt(raw_value);
+    lux_value = xVoltToLux(volt_value);
+    printf("[LUX] Lux value : %.0lf\r\n", lux_value);
   }
 }
 
