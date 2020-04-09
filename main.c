@@ -24,10 +24,12 @@ uint32_t SystemCoreClock;
 
 static TaskHandle_t xTask1 = NULL;
 static QueueHandle_t xQueue1 = NULL;
+static QueueHandle_t xQueue2 = NULL;
 
 static void vTask1(void *pvParameters);
 static void vTask2(void *pvParameters);
 static void vTask3(void *pvParameters);
+static void vTask4(void *pvParameters);
 
 static void user_delay_ms(uint32_t period);
 
@@ -40,6 +42,7 @@ int main(void)
   BaseType_t task1_status = pdFALSE;
   BaseType_t task2_status = pdFALSE;
   BaseType_t task3_status = pdFALSE;
+  BaseType_t task4_status = pdFALSE;
 
   task1_status = xTaskCreate(vTask1,
                             "Task1",
@@ -52,22 +55,32 @@ int main(void)
                             "Task2",
                             configMINIMAL_STACK_SIZE,
                             NULL,
-                            configMAX_PRIORITIES-1,
+                            configMAX_PRIORITIES-2,
                             NULL);
 
   task3_status = xTaskCreate(vTask3,
                             "Task3",
                             configMINIMAL_STACK_SIZE,
                             NULL,
-                            configMAX_PRIORITIES-1,
+                            configMAX_PRIORITIES-3,
+                            NULL);
+
+  task4_status = xTaskCreate(vTask4,
+                            "Task4",
+                            configMINIMAL_STACK_SIZE,
+                            NULL,
+                            configMAX_PRIORITIES-4,
                             NULL);
 
   xQueue1 = xQueueCreate(10, sizeof(uint32_t));
+  xQueue2 = xQueueCreate(10, sizeof(uint8_t));
 
   if((task1_status == pdPASS) &&
      (task2_status == pdPASS) &&
      (task3_status == pdPASS) &&
-     (xQueue1 != NULL))
+     (task4_status == pdPASS) &&
+     (xQueue1 != NULL)        &&
+     (xQueue2 != NULL))
   {
     vTaskStartScheduler();
     taskENABLE_INTERRUPTS();
@@ -103,7 +116,7 @@ void vTask1(void *pvParameters)
 {
   (void) pvParameters;
 
-  vUART_Setup();
+  vConsole_Setup();
   vLed_Setup();
   vPB_Setup();
 
@@ -280,6 +293,19 @@ void vTask3(void *pvParameters)
     /* BUG : double precision and function xVoltToLux */
     //lux_value = xVoltToLux(volt_value);
     printf("[LUX] Lux value : %d\r\n", volt_value);
+  }
+}
+
+void vTask4(void *pvParameters)
+{
+  (void) pvParameters;
+  vUART_Setup();
+
+  printf("Debug UART\r\n");
+
+  while(1)
+  {
+    vTaskDelay(pdMS_TO_TICKS(10000));
   }
 }
 
