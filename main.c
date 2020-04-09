@@ -101,6 +101,8 @@ void adc_isr(void)
 
 void vTask1(void *pvParameters)
 {
+  (void) pvParameters;
+
   vUART_Setup();
   vLed_Setup();
   vPB_Setup();
@@ -115,6 +117,8 @@ void vTask1(void *pvParameters)
 
 void vTask2(void *pvParameters)
 {
+  (void) pvParameters;
+
   vI2C_Setup();
 
   printf("Debug BME680\r\n");
@@ -258,13 +262,14 @@ void vTask2(void *pvParameters)
 
 void vTask3(void *pvParameters)
 {
+  (void) pvParameters;
   vADC_Setup();
 
   printf("Debug GA1A1S202WP\r\n");
 
   uint32_t raw_value = 0;
   uint32_t volt_value = 0;
-  double lux_value = 0;
+  //double lux_value = 0;
 
   while(1)
   {
@@ -272,8 +277,9 @@ void vTask3(void *pvParameters)
     adc_start_conversion_regular(ADC1);
     xQueueReceive(xQueue1, &raw_value, portMAX_DELAY);
     volt_value = xAdcRawToVolt(raw_value);
-    lux_value = xVoltToLux(volt_value);
-    printf("[LUX] Lux value : %.0lf\r\n", lux_value);
+    /* BUG : double precision and function xVoltToLux */
+    //lux_value = xVoltToLux(volt_value);
+    printf("[LUX] Lux value : %d\r\n", volt_value);
   }
 }
 
