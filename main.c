@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include <libopencm3/cm3/systick.h>
 
@@ -13,11 +15,14 @@
 #include "BSP/uart.h"
 #include "BSP/i2c.h"
 #include "BSP/adc.h"
+#include "BSP/rtc.h"
 
 #include "Driver/GA1A1S202WP/ga1a1s202wp.h"
 #include "Driver/BME680/bme680.h"
 
 #include "Debug/printf/printf.h"
+
+#define MAX_BUFFER_UART_RX 255
 
 /* Necessary for FreeRTOS */
 uint32_t SystemCoreClock;
@@ -32,6 +37,7 @@ static void vTask3(void *pvParameters);
 static void vTask4(void *pvParameters);
 
 static void user_delay_ms(uint32_t period);
+static time_s xExtract_Time(char *buffer);
 
 int main(void)
 {
@@ -55,7 +61,7 @@ int main(void)
                             "Task2",
                             configMINIMAL_STACK_SIZE,
                             NULL,
-                            configMAX_PRIORITIES-2,
+                            configMAX_PRIORITIES-4,
                             NULL);
 
   task3_status = xTaskCreate(vTask3,
@@ -69,11 +75,11 @@ int main(void)
                             "Task4",
                             configMINIMAL_STACK_SIZE,
                             NULL,
-                            configMAX_PRIORITIES-4,
+                            configMAX_PRIORITIES-2,
                             NULL);
 
   xQueue1 = xQueueCreate(10, sizeof(uint32_t));
-  xQueue2 = xQueueCreate(10, sizeof(uint8_t));
+  xQueue2 = xQueueCreate(10, sizeof(char) * MAX_BUFFER_UART_RX);
 
   if((task1_status == pdPASS) &&
      (task2_status == pdPASS) &&
@@ -114,6 +120,31 @@ void adc_isr(void)
   }
 }
 
+/* ISR for buffering received data from UART3 */
+void usart3_isr(void)
+{
+  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+  static volatile uint16_t c = 0;
+  static uint16_t i = 0;
+  static char buffer[MAX_BUFFER_UART_RX];
+
+  c = usart_recv(USART3);
+  buffer[i++] = (char)c;
+
+  if(c == '\0')
+  {
+    i = 0;
+    xQueueSendFromISR(xQueue2, buffer, &xHigherPriorityTaskWoken);
+  }
+  else if(i >= (MAX_BUFFER_UART_RX - 1))
+  {
+    i = 0;
+  }
+}
+
+/* Debug task
+ * Use Pushed-Button and LED
+ */
 void vTask1(void *pvParameters)
 {
   (void) pvParameters;
@@ -272,24 +303,107 @@ void vTask3(void *pvParameters)
     volt_value = xAdcRawToVolt(raw_value);
     /* BUG : double precision and function xVoltToLux */
     //lux_value = xVoltToLux(volt_value);
-    printf("[LUX] Lux value : %d\r\n", volt_value);
+    //printf("[LUX] Lux value : %d\r\n", volt_value);
   }
 }
 
+/* Update RTC calendar from UART command
+ * Used UART3
+ */
 void vTask4(void *pvParameters)
 {
   (void) pvParameters;
+  static char buffer[MAX_BUFFER_UART_RX];
+  time_s time;
+
   vUART_Setup();
 
-  printf("Debug UART\r\n");
+  printf("Debug RTC\r\n");
 
   while(1)
   {
-    vTaskDelay(pdMS_TO_TICKS(10000));
+    xQueueReceive(xQueue2, buffer, portMAX_DELAY);
+    // parse buffer
+    time = xExtract_Time(buffer);
+    printf("[RTC] Y:%d M:%d D:%d WD:%d H:%d M:%d S:%d\r\n",
+      time.year,
+      time.month,
+      time.day,
+      time.week_day,
+      time.hour,
+      time.minute,
+      time.second);
+    /* Decode buffer for extracting date and time calendar */
+    vRTC_Calendar_Setup(time);
   }
 }
 
 void user_delay_ms(uint32_t period)
 {
   vTaskDelay(pdMS_TO_TICKS(period));
+}
+
+static time_s xExtract_Time(char *buffer)
+{
+  time_s time;
+  uint8_t i = 0;         // Current position in the buffer
+  uint8_t b = 0;         // First digit for an element
+  uint8_t size_elmt = 0; // Size of an element
+  uint8_t i_elmt = 0;    // Position of current element in the buffer
+  char elmt[MAX_BUFFER_UART_RX]; // Buffer for storing element
+  int tmp = 0;
+  // search the end character
+  while(buffer[i] != '\0')
+  {
+    // search the next separator element
+    while((buffer[i] != ':') && (buffer[i] != '\0'))
+    {
+      i++;
+    }
+    size_elmt = i - b; // Memorize final digits (without separator position)
+    strncpy(elmt, &(buffer[b]), size_elmt);
+    elmt[size_elmt] = '\0';
+    tmp = atoi(elmt);
+    i_elmt++;  // Update number of  element
+
+    i++;
+    b = i; // Memorize first digit position
+
+    switch(i_elmt)
+    {
+      case 1:
+        time.year = (uint16_t)tmp;
+        break;
+
+      case 2:
+        time.month = (uint8_t)tmp;
+        break;
+
+      case 3:
+        time.day = (uint8_t)tmp;
+        break;
+
+      case 4:
+        time.week_day = (uint8_t)(tmp+1);
+        break;
+
+      case 5:
+        time.hour = (uint8_t)tmp;
+        break;
+
+      case 6:
+        time.minute = (uint8_t)tmp;
+        break;
+
+      case 7:
+        time.second = (uint8_t)tmp;
+        break;
+
+      default:
+        /* Nothing */
+        break;
+    }
+  } // while on the all buffer
+
+  return time;
 }
