@@ -91,6 +91,7 @@ int main(void)
   return 0;
 }
 
+/* ISR from Pushed-Button */
 void exti15_10_isr(void)
 {
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
@@ -99,6 +100,7 @@ void exti15_10_isr(void)
   vTaskNotifyGiveFromISR(xTask1, &xHigherPriorityTaskWoken);
 }
 
+/* ISR for sampling Luminosity measurement */
 void adc_isr(void)
 {
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
@@ -120,6 +122,8 @@ void vTask1(void *pvParameters)
   vLed_Setup();
   vPB_Setup();
 
+  printf("Debug LED\r\n");
+
   while(1)
   {
     /* Wait Pushed Button */
@@ -128,6 +132,10 @@ void vTask1(void *pvParameters)
   }
 }
 
+/* Get and compute BME680 data sensor
+ * Temperature, relative Humidity adn Pressure
+ * Use I2C1
+ */
 void vTask2(void *pvParameters)
 {
   (void) pvParameters;
@@ -215,21 +223,17 @@ void vTask2(void *pvParameters)
 
     rslt = bme680_get_sensor_data(&data, &bme680_chip);
 
-    printf("Get Data : ");
-
-    if(rslt == BME680_OK)
+    if(rslt != BME680_OK)
     {
-      printf("ok !\r\n");
+      printf("[BME680] Get Data fail ...\r\n");
     }
     else
     {
-      printf("fail ...\r\n");
+      printf("[BME680] T: %d, P: %d, H %d\r\n",
+          data.temperature / 100,
+          data.pressure / 100,
+          data.humidity / 1000);
     }
-
-    printf("T: %d, P: %d, H %d \r\n",
-        data.temperature / 100,
-        data.pressure / 100,
-        data.humidity / 1000);
 
     /* Trigger the next measurement if you would like to read data out continuously */
     if (bme680_chip.power_mode == BME680_FORCED_MODE)
@@ -237,20 +241,18 @@ void vTask2(void *pvParameters)
         rslt = bme680_set_sensor_mode(&bme680_chip);
     }
 
-    printf("Forced Mode : ");
+    if(rslt != BME680_OK)
+    {
+      printf("[BME680] Forced mode fail ...\r\n");
+    }
 
-    if(rslt == BME680_OK)
-    {
-      printf("ok !\r\n");
-    }
-    else
-    {
-      printf("fail ...\r\n");
-    }
     vTaskDelay(pdMS_TO_TICKS(1000));
   }
 }
 
+/* Compute Luminosity measurement
+ * Used Analog 0 Pin
+ */
 void vTask3(void *pvParameters)
 {
   (void) pvParameters;
