@@ -147,30 +147,20 @@ void vTask2(void *pvParameters)
   bme680_chip.amb_temp = 19;
 
   int8_t rslt = BME680_OK;
-  printf("Reset : ");
 
-  if(rslt == BME680_OK)
+  if(rslt != BME680_OK)
   {
-    printf("ok !\r\n");
+    printf("[BME680] Reset fail ...\r\n");
   }
-  else
-  {
-    printf("fail ...\r\n");
-  }
+
   bme680_soft_reset(&bme680_chip);
 
   rslt = BME680_OK;
   rslt = bme680_init(&bme680_chip);
 
-  printf("Init : ");
-
-  if(rslt == BME680_OK)
+  if(rslt != BME680_OK)
   {
-    printf("ok !\r\n");
-  }
-  else
-  {
-    printf("fail ...\r\n");
+    printf("[BME680] Init fail ...\r\n");
   }
 
   /* Configuration */
@@ -201,29 +191,17 @@ void vTask2(void *pvParameters)
   /* Set the desired sensor configuration */
   rslt = bme680_set_sensor_settings(set_required_settings, &bme680_chip);
 
-  printf("Setting : ");
-
-  if(rslt == BME680_OK)
+  if(rslt != BME680_OK)
   {
-    printf("ok !\r\n");
-  }
-  else
-  {
-    printf("fail ...\r\n");
+    printf("[BME680] Settting fail ...\r\n");
   }
 
   /* Set the power mode */
   rslt = bme680_set_sensor_mode(&bme680_chip);
 
-  printf("Power Mode : ");
-
-  if(rslt == BME680_OK)
+  if(rslt != BME680_OK)
   {
-    printf("ok !\r\n");
-  }
-  else
-  {
-    printf("fail ...\r\n");
+    printf("[BME680] Power Mode fail ...\r\n");
   }
 
   uint16_t meas_period;

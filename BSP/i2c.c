@@ -19,8 +19,7 @@ int8_t xI2C_Read(uint8_t dev_id,
                      uint8_t *reg_data,
                      uint16_t len)
 {
-  i2c_transfer7(I2C1, dev_id, &reg_addr, 1, NULL, 0);
-  i2c_transfer7(I2C1, dev_id, NULL, 0, reg_data, (size_t)len);
+  i2c_transfer7(I2C1, dev_id, &reg_addr, 1, reg_data, (size_t)len);
 
   return 0;
 }
