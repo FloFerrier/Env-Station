@@ -25,20 +25,13 @@ void vUART_Setup(void)
   gpio_mode_setup(GPIOC,
                   GPIO_MODE_AF,
                   GPIO_PUPD_NONE,
-                  GPIO10);
-  gpio_set_af(GPIOC, GPIO_AF7, GPIO10);
-
-  rcc_periph_clock_enable(RCC_GPIOC);
-  gpio_mode_setup(GPIOC,
-                  GPIO_MODE_AF,
-                  GPIO_PUPD_NONE,
-                  GPIO11);
-  gpio_set_af(GPIOC, GPIO_AF7, GPIO11);
+                  GPIO10 | GPIO11);
+  gpio_set_af(GPIOC, GPIO_AF7, GPIO10 | GPIO11);
 
   rcc_periph_clock_enable(RCC_USART3);
   nvic_disable_irq(NVIC_USART3_IRQ);
   usart_disable_rx_interrupt(USART3);
-  usart_set_baudrate(USART3, 115200);
+  usart_set_baudrate(USART3, 38400);
   usart_set_databits(USART3, 8);
   usart_set_stopbits(USART3, USART_STOPBITS_1);
   usart_set_mode(USART3, USART_MODE_TX_RX);
@@ -53,4 +46,9 @@ void vUART_Setup(void)
 void _putchar(char character)
 {
   usart_send_blocking(USART2, (uint16_t)character);
+}
+
+void HC05_putchar(char character)
+{
+  usart_send_blocking(USART3, (uint16_t)character);
 }

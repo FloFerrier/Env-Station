@@ -13,12 +13,14 @@
 #include "BSP/button.h"
 #include "BSP/led.h"
 #include "BSP/uart.h"
+#include "BSP/gpio.h"
 #include "BSP/i2c.h"
 #include "BSP/adc.h"
 #include "BSP/rtc.h"
 
 #include "Driver/GA1A1S202WP/ga1a1s202wp.h"
 #include "Driver/BME680/bme680.h"
+#include "Driver/HC05/hc05.h"
 
 #include "Debug/printf/printf.h"
 
@@ -36,7 +38,9 @@ static void vTask2(void *pvParameters);
 static void vTask3(void *pvParameters);
 static void vTask4(void *pvParameters);
 
-static void user_delay_ms(uint32_t period);
+void HC05_Receive(char *p_str);
+void HC05_Timer(uint32_t time);
+void user_delay_ms(uint32_t period);
 static time_s xExtract_Time(char *buffer);
 
 int main(void)
@@ -131,7 +135,7 @@ void usart3_isr(void)
   c = usart_recv(USART3);
   buffer[i++] = (char)c;
 
-  if(c == '\0')
+  if(c == '\n')
   {
     i = 0;
     xQueueSendFromISR(xQueue2, buffer, &xHigherPriorityTaskWoken);
@@ -149,9 +153,9 @@ void vTask1(void *pvParameters)
 {
   (void) pvParameters;
 
-  vConsole_Setup();
   vLed_Setup();
   vPB_Setup();
+  vConsole_Setup();
 
   printf("Debug LED\r\n");
 
@@ -303,7 +307,7 @@ void vTask3(void *pvParameters)
     volt_value = xAdcRawToVolt(raw_value);
     /* BUG : double precision and function xVoltToLux */
     //lux_value = xVoltToLux(volt_value);
-    //printf("[LUX] Lux value : %d\r\n", volt_value);
+    printf("[LUX] Lux value : %d\r\n", volt_value);
   }
 }
 
@@ -316,26 +320,58 @@ void vTask4(void *pvParameters)
   static char buffer[MAX_BUFFER_UART_RX];
   time_s time;
 
+  printf("Debug Communication\r\n");
+  int8_t rslt = HC05_OK;
+
+  vGPIO_Setup();
   vUART_Setup();
 
-  printf("Debug RTC\r\n");
+  rslt = HC05_Setup("WS-V1", "0501");
 
-  while(1)
+  if(rslt != HC05_OK)
   {
-    xQueueReceive(xQueue2, buffer, portMAX_DELAY);
-    // parse buffer
-    time = xExtract_Time(buffer);
-    printf("[RTC] Y:%d M:%d D:%d WD:%d H:%d M:%d S:%d\r\n",
-      time.year,
-      time.month,
-      time.day,
-      time.week_day,
-      time.hour,
-      time.minute,
-      time.second);
-    /* Decode buffer for extracting date and time calendar */
-    vRTC_Calendar_Setup(time);
+    printf("[HC05] Setup fail ...\r\n");
   }
+
+  printf("[HC05] Data Mode Start !\r\n");
+
+  /* Wait msg with Time setting */
+  HC05_Receive(buffer);
+
+  /*time = xExtract_Time(buffer);
+  printf("[RTC] Y:%d M:%d D:%d WD:%d H:%d M:%d S:%d\r\n",
+    time.year,
+    time.month,
+    time.day,
+    time.week_day,
+    time.hour,
+    time.minute,
+    time.second);*/
+  /* Decode buffer for extracting date and time calendar */
+  //vRTC_Calendar_Setup(time);
+
+  HC05_Send_Data("Hello World !\r\n");
+  if(HC05_Cmp_Response("ACK\r\n"))
+  {
+    printf("[HC05] ACK !\r\n");
+  }
+  else
+  {
+    printf("[HC05] No ACK ...\r\n");
+  }
+
+  vTaskDelete(NULL);
+}
+
+void HC05_Receive(char *p_str)
+{
+  xQueueReceive(xQueue2, p_str, portMAX_DELAY);
+  //printf("%s", p_str);
+}
+
+void HC05_Timer(uint32_t time)
+{
+  vTaskDelay(pdMS_TO_TICKS(time));
 }
 
 void user_delay_ms(uint32_t period)
@@ -343,7 +379,7 @@ void user_delay_ms(uint32_t period)
   vTaskDelay(pdMS_TO_TICKS(period));
 }
 
-static time_s xExtract_Time(char *buffer)
+time_s xExtract_Time(char *buffer)
 {
   time_s time;
   uint8_t i = 0;         // Current position in the buffer

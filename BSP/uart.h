@@ -7,8 +7,9 @@
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/usart.h>
 
-void vConsole_Setup(void); /* Console Debug (with micro-USB)*/
-void vUART_Setup(void);    /* UART for sending data */
+void vConsole_Setup(void);
+void vUART_Setup(void);
 void _putchar(char character);
+void HC05_putchar(char character);
 
 #endif /* UART_H */
