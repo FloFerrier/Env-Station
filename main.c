@@ -443,3 +443,9 @@ time_s xExtract_Time(char *buffer)
 
   return time;
 }
+
+void vApplicationStackOverflowHook(TaskHandle_t xTask, signed char *pcTaskName)
+{
+  (void) xTask;
+  printf("[WARNING] Stack overflow : %s\r\n", pcTaskName);
+}
