@@ -1,7 +1,5 @@
 #include "rtc.h"
 
-#include "Debug/printf/printf.h"
-
 typedef struct
 {
   uint8_t tens;
