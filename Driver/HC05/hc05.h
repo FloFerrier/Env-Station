@@ -6,8 +6,6 @@
 #include <string.h>
 #include <stdbool.h>
 
-#include "Debug/printf/printf.h"
-
 #define HC05_OK 0
 
 /* DEFINE yours functions */

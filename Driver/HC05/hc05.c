@@ -121,9 +121,16 @@ int8_t HC05_Setup(const char *p_name, const char *p_pswd)
   HC05_Enable_Power(true);
   HC05_Timer(1000); // Wait 1 second
   HC05_Enable_Command_Mode(true);
+  bool rslt = false;
+  uint8_t try = 5;
 
-  HC05_Command_Mode();
-  if(HC05_Cmp_Response("OK\r\n") != true)
+  while((try > 0) && (rslt == false))
+  {
+    HC05_Command_Mode();
+    rslt = HC05_Cmp_Response("OK\r\n");
+    try--;
+  }
+  if(try == 0)
   {
     return -1;
   }
