@@ -263,10 +263,10 @@ void vTask2(void *pvParameters)
     }
     else
     {
-      printf("[BME680] T: %d, P: %d, H %d\r\n",
+      /*printf("[BME680] T: %d, P: %d, H %d\r\n",
           data.temperature / 100,
           data.pressure / 100,
-          data.humidity / 1000);
+          data.humidity / 1000);*/
     }
 
     /* Trigger the next measurement if you would like to read data out continuously */
@@ -319,8 +319,9 @@ void vTask4(void *pvParameters)
   static char buffer[MAX_BUFFER_UART_RX];
   static char p_msg[MAX_BUFFER_UART_RX];
   time_s time;
+  sensor_data_s data;
 
-  printf("Debug HC05\r\n");
+  printf("Debug MSG\r\n");
   int8_t rslt = HC05_OK;
 
   vGPIO_Setup();
@@ -352,24 +353,29 @@ void vTask4(void *pvParameters)
   /* Decode buffer for extracting date and time calendar */
   vRTC_Calendar_Setup(time);
 
-  HC05_Send_Data("RTC Set !\r\n");
-  if(HC05_Cmp_Response("ACK\r\n"))
-  {
-    printf("[HC05] ACK !\r\n");
-  }
-  else
-  {
-    printf("[HC05] No ACK ...\r\n");
-  }
-
   while(1)
   {
     vTaskDelay(1000); // Very simple sampling
 
     vRTC_Calendar_Read(&time);
 
-    Serialize_Msg(time, 9999, p_msg);
-    printf("[RAW] %s\r\n", p_msg);
+    /* Fake Data */
+    data.temperature = 20;
+    data.pressure    = 2000;
+    data.humidity    = 48;
+    data.luminosity  = 1999;
+    data.gas         = 200;
+    Serialize_Msg(time, data, p_msg);
+    HC05_Send_Data(p_msg);
+    printf("[HC05] %s\r\n", p_msg);
+    if(HC05_Cmp_Response("ACK\r\n"))
+    {
+      printf("[HC05] ACK !\r\n");
+    }
+    else
+    {
+      printf("[HC05] No ACK ...\r\n");
+    }
   }
 }
 
