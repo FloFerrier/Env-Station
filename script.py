@@ -10,7 +10,7 @@ def serializeDate(date):
           str(date.tm_wday) + ':' + \
           str(date.tm_hour) + ':' + \
           str(date.tm_min)  + ':' + \
-          str(date.tm_sec)  + '\0'
+          str(date.tm_sec)  + '\n'
     return tmp
 
 def main():

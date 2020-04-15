@@ -22,9 +22,9 @@
 #include "Driver/BME680/bme680.h"
 #include "Driver/HC05/hc05.h"
 
-#include "Debug/printf/printf.h"
+#include "Tool/msg-protocol/msg-protocol.h"
 
-#define MAX_BUFFER_UART_RX 255
+#include "Tool/printf/printf.h"
 
 /* Necessary for FreeRTOS */
 uint32_t SystemCoreClock;
@@ -41,7 +41,6 @@ static void vTask4(void *pvParameters);
 void HC05_Receive(char *p_str);
 void HC05_Timer(uint32_t time);
 void user_delay_ms(uint32_t period);
-static time_s xExtract_Time(char *buffer);
 
 int main(void)
 {
@@ -307,20 +306,21 @@ void vTask3(void *pvParameters)
     volt_value = xAdcRawToVolt(raw_value);
     /* BUG : double precision and function xVoltToLux */
     //lux_value = xVoltToLux(volt_value);
-    printf("[LUX] Lux value : %d\r\n", volt_value);
+    //printf("[LUX] Lux value : %d\r\n", volt_value);
   }
 }
 
-/* Update RTC calendar from UART command
+/* Bluetooth communication - HC05
  * Used UART3
  */
 void vTask4(void *pvParameters)
 {
   (void) pvParameters;
   static char buffer[MAX_BUFFER_UART_RX];
+  static char p_msg[MAX_BUFFER_UART_RX];
   time_s time;
 
-  printf("Debug Communication\r\n");
+  printf("Debug HC05\r\n");
   int8_t rslt = HC05_OK;
 
   vGPIO_Setup();
@@ -335,10 +335,12 @@ void vTask4(void *pvParameters)
 
   printf("[HC05] Data Mode Start !\r\n");
 
-  /* Wait msg with Time setting */
+  /* Eliminating garbage data on UART */
   HC05_Receive(buffer);
 
-  /*time = xExtract_Time(buffer);
+  /* Wait msg with Time setting */
+  HC05_Receive(buffer);
+  time = Deserialize_Time(buffer);
   printf("[RTC] Y:%d M:%d D:%d WD:%d H:%d M:%d S:%d\r\n",
     time.year,
     time.month,
@@ -346,11 +348,11 @@ void vTask4(void *pvParameters)
     time.week_day,
     time.hour,
     time.minute,
-    time.second);*/
+    time.second);
   /* Decode buffer for extracting date and time calendar */
-  //vRTC_Calendar_Setup(time);
+  vRTC_Calendar_Setup(time);
 
-  HC05_Send_Data("Hello World !\r\n");
+  HC05_Send_Data("RTC Set !\r\n");
   if(HC05_Cmp_Response("ACK\r\n"))
   {
     printf("[HC05] ACK !\r\n");
@@ -360,7 +362,15 @@ void vTask4(void *pvParameters)
     printf("[HC05] No ACK ...\r\n");
   }
 
-  vTaskDelete(NULL);
+  while(1)
+  {
+    vTaskDelay(1000); // Very simple sampling
+
+    vRTC_Calendar_Read(&time);
+
+    Serialize_Msg(time, 9999, p_msg);
+    printf("[RAW] %s\r\n", p_msg);
+  }
 }
 
 void HC05_Receive(char *p_str)
@@ -377,71 +387,6 @@ void HC05_Timer(uint32_t time)
 void user_delay_ms(uint32_t period)
 {
   vTaskDelay(pdMS_TO_TICKS(period));
-}
-
-time_s xExtract_Time(char *buffer)
-{
-  time_s time;
-  uint8_t i = 0;         // Current position in the buffer
-  uint8_t b = 0;         // First digit for an element
-  uint8_t size_elmt = 0; // Size of an element
-  uint8_t i_elmt = 0;    // Position of current element in the buffer
-  char elmt[MAX_BUFFER_UART_RX]; // Buffer for storing element
-  int tmp = 0;
-  // search the end character
-  while(buffer[i] != '\0')
-  {
-    // search the next separator element
-    while((buffer[i] != ':') && (buffer[i] != '\0'))
-    {
-      i++;
-    }
-    size_elmt = i - b; // Memorize final digits (without separator position)
-    strncpy(elmt, &(buffer[b]), size_elmt);
-    elmt[size_elmt] = '\0';
-    tmp = atoi(elmt);
-    i_elmt++;  // Update number of  element
-
-    i++;
-    b = i; // Memorize first digit position
-
-    switch(i_elmt)
-    {
-      case 1:
-        time.year = (uint16_t)tmp;
-        break;
-
-      case 2:
-        time.month = (uint8_t)tmp;
-        break;
-
-      case 3:
-        time.day = (uint8_t)tmp;
-        break;
-
-      case 4:
-        time.week_day = (uint8_t)(tmp+1);
-        break;
-
-      case 5:
-        time.hour = (uint8_t)tmp;
-        break;
-
-      case 6:
-        time.minute = (uint8_t)tmp;
-        break;
-
-      case 7:
-        time.second = (uint8_t)tmp;
-        break;
-
-      default:
-        /* Nothing */
-        break;
-    }
-  } // while on the all buffer
-
-  return time;
 }
 
 void vApplicationStackOverflowHook(TaskHandle_t xTask, signed char *pcTaskName)
