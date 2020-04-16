@@ -17,11 +17,11 @@ typedef struct
   uint32_t pressure;
   uint32_t luminosity;
   uint32_t gas;
-} sensor_data_s;
+} sensors_data_s;
 
 time_s Deserialize_Time(char *buffer);
 void Serialize_Msg(time_s time,
-                   sensor_data_s data,
+                   sensors_data_s data,
                    char *p_msg);
 
 #endif /* MSG_PROTOCOL_H */

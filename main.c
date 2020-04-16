@@ -29,14 +29,14 @@
 /* Necessary for FreeRTOS */
 uint32_t SystemCoreClock;
 
-static TaskHandle_t xTask1 = NULL;
-static QueueHandle_t xQueue1 = NULL;
-static QueueHandle_t xQueue2 = NULL;
+static TaskHandle_t xTaskSafety = NULL;
+static QueueHandle_t xQueueAdcSensorLux = NULL;
+static QueueHandle_t xQueueUartIsrRx = NULL;
 
-static void vTask1(void *pvParameters);
-static void vTask2(void *pvParameters);
-static void vTask3(void *pvParameters);
-static void vTask4(void *pvParameters);
+static void vTaskSafety(void *pvParameters);
+static void vTaskBME680(void *pvParameters);
+static void vTaskSensorLux(void *pvParameters);
+static void vTaskCommunicator(void *pvParameters);
 
 void HC05_Receive(char *p_str);
 void HC05_Timer(uint32_t time);
@@ -53,43 +53,43 @@ int main(void)
   BaseType_t task3_status = pdFALSE;
   BaseType_t task4_status = pdFALSE;
 
-  task1_status = xTaskCreate(vTask1,
-                            "Task1",
+  task1_status = xTaskCreate(vTaskSafety,
+                            "Task Safety",
                             configMINIMAL_STACK_SIZE,
                             NULL,
                             configMAX_PRIORITIES-1,
-                            &xTask1);
+                            &xTaskSafety);
 
-  task2_status = xTaskCreate(vTask2,
-                            "Task2",
+  task2_status = xTaskCreate(vTaskBME680,
+                            "Task BME680",
                             configMINIMAL_STACK_SIZE,
                             NULL,
                             configMAX_PRIORITIES-4,
                             NULL);
 
-  task3_status = xTaskCreate(vTask3,
-                            "Task3",
+  task3_status = xTaskCreate(vTaskSensorLux,
+                            "Task Sensor Lux",
                             configMINIMAL_STACK_SIZE,
                             NULL,
                             configMAX_PRIORITIES-3,
                             NULL);
 
-  task4_status = xTaskCreate(vTask4,
-                            "Task4",
+  task4_status = xTaskCreate(vTaskCommunicator,
+                            "Task Communicator",
                             configMINIMAL_STACK_SIZE,
                             NULL,
                             configMAX_PRIORITIES-2,
                             NULL);
 
-  xQueue1 = xQueueCreate(10, sizeof(uint32_t));
-  xQueue2 = xQueueCreate(10, sizeof(char) * MAX_BUFFER_UART_RX);
+  xQueueAdcSensorLux = xQueueCreate(10, sizeof(uint32_t));
+  xQueueUartIsrRx = xQueueCreate(10, sizeof(char) * MAX_BUFFER_UART_RX);
 
-  if((task1_status == pdPASS) &&
-     (task2_status == pdPASS) &&
-     (task3_status == pdPASS) &&
-     (task4_status == pdPASS) &&
-     (xQueue1 != NULL)        &&
-     (xQueue2 != NULL))
+  if((task1_status == pdPASS)     &&
+     (task2_status == pdPASS)     &&
+     (task3_status == pdPASS)     &&
+     (task4_status == pdPASS)     &&
+     (xQueueAdcSensorLux != NULL) &&
+     (xQueueUartIsrRx != NULL))
   {
     vTaskStartScheduler();
     taskENABLE_INTERRUPTS();
@@ -106,7 +106,7 @@ void exti15_10_isr(void)
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
   exti_reset_request(EXTI13);
-  vTaskNotifyGiveFromISR(xTask1, &xHigherPriorityTaskWoken);
+  vTaskNotifyGiveFromISR(xTaskSafety, &xHigherPriorityTaskWoken);
 }
 
 /* ISR for sampling Luminosity measurement */
@@ -119,7 +119,7 @@ void adc_isr(void)
   {
     adc_clear_flag(ADC1, ADC_SR_EOC);
     raw_value = adc_read_regular(ADC1);
-    xQueueSendFromISR(xQueue1, &raw_value,&xHigherPriorityTaskWoken);
+    xQueueSendFromISR(xQueueAdcSensorLux, &raw_value,&xHigherPriorityTaskWoken);
   }
 }
 
@@ -137,7 +137,7 @@ void usart3_isr(void)
   if(c == '\n')
   {
     i = 0;
-    xQueueSendFromISR(xQueue2, buffer, &xHigherPriorityTaskWoken);
+    xQueueSendFromISR(xQueueUartIsrRx, buffer, &xHigherPriorityTaskWoken);
   }
   else if(i >= (MAX_BUFFER_UART_RX - 1))
   {
@@ -145,18 +145,26 @@ void usart3_isr(void)
   }
 }
 
+/* Daemon which schedule the sampling with software timer
+ *
+ */
+void vTimerCallback(TimerHandle_t xTimer)
+{
+  (void) xTimer;
+  xTaskNotifyGive(xTaskBME680);
+  xTaskNotifyGive(xTaskLUX);
+}
+
 /* Debug task
  * Use Pushed-Button and LED
  */
-void vTask1(void *pvParameters)
+void vTaskSafety(void *pvParameters)
 {
   (void) pvParameters;
+  printf("Debug LED\r\n");
 
   vLed_Setup();
   vPB_Setup();
-  vConsole_Setup();
-
-  printf("Debug LED\r\n");
 
   while(1)
   {
@@ -170,7 +178,7 @@ void vTask1(void *pvParameters)
  * Temperature, relative Humidity adn Pressure
  * Use I2C1
  */
-void vTask2(void *pvParameters)
+void vTaskBME680(void *pvParameters)
 {
   (void) pvParameters;
 
@@ -235,7 +243,7 @@ void vTask2(void *pvParameters)
 
   if(rslt != BME680_OK)
   {
-    printf("[BME680] Settting fail ...\r\n");
+    printf("[BME680] Setting fail ...\r\n");
   }
 
   /* Set the power mode */
@@ -279,15 +287,13 @@ void vTask2(void *pvParameters)
     {
       printf("[BME680] Forced mode fail ...\r\n");
     }
-
-    vTaskDelay(pdMS_TO_TICKS(1000));
   }
 }
 
 /* Compute Luminosity measurement
  * Used Analog 0 Pin
  */
-void vTask3(void *pvParameters)
+void vTaskSensorLux(void *pvParameters)
 {
   (void) pvParameters;
   vADC_Setup();
@@ -300,9 +306,10 @@ void vTask3(void *pvParameters)
 
   while(1)
   {
-    vTaskDelay(pdMS_TO_TICKS(2500));
+    vTaskDelay(pdMS_TO_TICKS(2500)); /* Sampling */
+
     adc_start_conversion_regular(ADC1);
-    xQueueReceive(xQueue1, &raw_value, portMAX_DELAY);
+    xQueueReceive(xQueueAdcSensorLux, &raw_value, portMAX_DELAY);
     volt_value = xAdcRawToVolt(raw_value);
     /* BUG : double precision and function xVoltToLux */
     //lux_value = xVoltToLux(volt_value);
@@ -313,7 +320,7 @@ void vTask3(void *pvParameters)
 /* Bluetooth communication - HC05
  * Used UART3
  */
-void vTask4(void *pvParameters)
+void vTaskCommunicator(void *pvParameters)
 {
   (void) pvParameters;
   static char buffer[MAX_BUFFER_UART_RX];
@@ -381,8 +388,7 @@ void vTask4(void *pvParameters)
 
 void HC05_Receive(char *p_str)
 {
-  xQueueReceive(xQueue2, p_str, portMAX_DELAY);
-  //printf("%s", p_str);
+  xQueueReceive(xQueueUartIsrRx, p_str, portMAX_DELAY);
 }
 
 void HC05_Timer(uint32_t time)
