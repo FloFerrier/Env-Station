@@ -9,6 +9,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
+#include "timers.h"
 
 #include "BSP/button.h"
 #include "BSP/led.h"
@@ -26,17 +27,33 @@
 
 #include "Tool/printf/printf.h"
 
+typedef struct
+{
+  char id;
+  uint32_t value;
+} sensor_measure_s;
+
 /* Necessary for FreeRTOS */
 uint32_t SystemCoreClock;
 
 static TaskHandle_t xTaskSafety = NULL;
+static TaskHandle_t xTaskBME680 = NULL;
+static TaskHandle_t xTaskLUX = NULL;
+
+static TimerHandle_t xTimerSampling = NULL;
+
 static QueueHandle_t xQueueAdcSensorLux = NULL;
 static QueueHandle_t xQueueUartIsrRx = NULL;
+static QueueHandle_t xQueueSensorsToSupervisor = NULL;
+static QueueHandle_t xQueueSupervisorToCommunicator = NULL;
 
 static void vTaskSafety(void *pvParameters);
 static void vTaskBME680(void *pvParameters);
 static void vTaskSensorLux(void *pvParameters);
+static void vTaskSupervisor(void *pvParameters);
 static void vTaskCommunicator(void *pvParameters);
+
+static void vTimerCallback(TimerHandle_t xTimer);
 
 void HC05_Receive(char *p_str);
 void HC05_Timer(uint32_t time);
@@ -47,11 +64,15 @@ int main(void)
   SystemCoreClock = rcc_ahb_frequency;
   systick_set_frequency(configTICK_RATE_HZ, SystemCoreClock);
 
+  /* Console Debug */
+  vConsole_Setup();
+
   /* Tasks Creation */
   BaseType_t task1_status = pdFALSE;
   BaseType_t task2_status = pdFALSE;
   BaseType_t task3_status = pdFALSE;
   BaseType_t task4_status = pdFALSE;
+  BaseType_t task5_status = pdFALSE;
 
   task1_status = xTaskCreate(vTaskSafety,
                             "Task Safety",
@@ -65,14 +86,14 @@ int main(void)
                             configMINIMAL_STACK_SIZE,
                             NULL,
                             configMAX_PRIORITIES-4,
-                            NULL);
+                            &xTaskBME680);
 
   task3_status = xTaskCreate(vTaskSensorLux,
                             "Task Sensor Lux",
                             configMINIMAL_STACK_SIZE,
                             NULL,
-                            configMAX_PRIORITIES-3,
-                            NULL);
+                            configMAX_PRIORITIES-5,
+                            &xTaskLUX);
 
   task4_status = xTaskCreate(vTaskCommunicator,
                             "Task Communicator",
@@ -81,15 +102,34 @@ int main(void)
                             configMAX_PRIORITIES-2,
                             NULL);
 
+  task5_status = xTaskCreate(vTaskSupervisor,
+                            "Task Supervisor",
+                            configMINIMAL_STACK_SIZE,
+                            NULL,
+                            configMAX_PRIORITIES-3,
+                            NULL);
+
+  xTimerSampling = xTimerCreate("Timer Sampling",
+                            pdMS_TO_TICKS(2000),
+                            pdTRUE,	// Auto-reload
+                            (void *) 0,
+                            vTimerCallback);
+
   xQueueAdcSensorLux = xQueueCreate(10, sizeof(uint32_t));
   xQueueUartIsrRx = xQueueCreate(10, sizeof(char) * MAX_BUFFER_UART_RX);
+  xQueueSensorsToSupervisor = xQueueCreate(10, sizeof(sensor_measure_s));
+  xQueueSupervisorToCommunicator = xQueueCreate(10, sizeof(sensors_data_s));
 
-  if((task1_status == pdPASS)     &&
-     (task2_status == pdPASS)     &&
-     (task3_status == pdPASS)     &&
-     (task4_status == pdPASS)     &&
-     (xQueueAdcSensorLux != NULL) &&
-     (xQueueUartIsrRx != NULL))
+  if((task1_status == pdPASS)            &&
+     (task2_status == pdPASS)            &&
+     (task3_status == pdPASS)            &&
+     (task4_status == pdPASS)            &&
+     (task5_status == pdPASS)            &&
+     (xTimerSampling != NULL)            &&
+     (xQueueAdcSensorLux != NULL)        &&
+     (xQueueUartIsrRx != NULL)           &&
+     (xQueueSensorsToSupervisor != NULL) &&
+     (xQueueSupervisorToCommunicator != NULL))
   {
     vTaskStartScheduler();
     taskENABLE_INTERRUPTS();
@@ -181,10 +221,13 @@ void vTaskSafety(void *pvParameters)
 void vTaskBME680(void *pvParameters)
 {
   (void) pvParameters;
+  printf("Debug BME680\r\n");
+
+  sensor_measure_s measure_temperature = {.value = 0, .id = 'T'};
+  sensor_measure_s measure_pressure = {.value = 0, .id = 'P'};
+  sensor_measure_s measure_humidity = {.value = 0, .id = 'H'};
 
   vI2C_Setup();
-
-  printf("Debug BME680\r\n");
 
   /* Initialization */
   struct bme680_dev bme680_chip;
@@ -259,23 +302,12 @@ void vTaskBME680(void *pvParameters)
 
   struct bme680_field_data data;
 
+  printf("[BME680] Setup finished.\r\n");
+
   while(1)
   {
-    user_delay_ms(meas_period); /* Delay till the measurement is ready */
-
-    rslt = bme680_get_sensor_data(&data, &bme680_chip);
-
-    if(rslt != BME680_OK)
-    {
-      printf("[BME680] Get Data fail ...\r\n");
-    }
-    else
-    {
-      /*printf("[BME680] T: %d, P: %d, H %d\r\n",
-          data.temperature / 100,
-          data.pressure / 100,
-          data.humidity / 1000);*/
-    }
+    /* Wait Sampling */
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
     /* Trigger the next measurement if you would like to read data out continuously */
     if (bme680_chip.power_mode == BME680_FORCED_MODE)
@@ -287,6 +319,33 @@ void vTaskBME680(void *pvParameters)
     {
       printf("[BME680] Forced mode fail ...\r\n");
     }
+
+    user_delay_ms(meas_period); /* Delay till the measurement is ready */
+
+    rslt = bme680_get_sensor_data(&data, &bme680_chip);
+
+    if(rslt != BME680_OK)
+    {
+      printf("[BME680] Get Data fail ...\r\n");
+      measure_temperature.value = 0;
+      measure_pressure.value = 0;
+      measure_humidity.value = 0;
+    }
+    else
+    {
+      measure_temperature.value = data.temperature / 100;
+      measure_pressure.value = data.pressure / 100;
+      measure_humidity.value = data.humidity / 1000;
+
+      printf("[BME680] T: %d, P: %d, H %d\r\n",
+          measure_temperature.value,
+          measure_pressure.value,
+          measure_humidity.value);
+    }
+
+    xQueueSend(xQueueSensorsToSupervisor, &measure_temperature, pdMS_TO_TICKS(1));
+    xQueueSend(xQueueSensorsToSupervisor, &measure_pressure, pdMS_TO_TICKS(1));
+    xQueueSend(xQueueSensorsToSupervisor, &measure_humidity, pdMS_TO_TICKS(1));
   }
 }
 
@@ -296,24 +355,74 @@ void vTaskBME680(void *pvParameters)
 void vTaskSensorLux(void *pvParameters)
 {
   (void) pvParameters;
-  vADC_Setup();
-
   printf("Debug GA1A1S202WP\r\n");
+
+  sensor_measure_s measure_luminosity = {.value = 0, .id = 'L'};
+  vADC_Setup();
 
   uint32_t raw_value = 0;
   uint32_t volt_value = 0;
   //double lux_value = 0;
 
+  printf("[GA1A1S202WP] Setup finished.\r\n");
+
   while(1)
   {
-    vTaskDelay(pdMS_TO_TICKS(2500)); /* Sampling */
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
     adc_start_conversion_regular(ADC1);
     xQueueReceive(xQueueAdcSensorLux, &raw_value, portMAX_DELAY);
     volt_value = xAdcRawToVolt(raw_value);
     /* BUG : double precision and function xVoltToLux */
     //lux_value = xVoltToLux(volt_value);
-    //printf("[LUX] Lux value : %d\r\n", volt_value);
+    printf("[LUX] Lux value : %d\r\n", volt_value);
+
+    measure_luminosity.value = volt_value;
+    xQueueSend(xQueueSensorsToSupervisor, &measure_luminosity, pdMS_TO_TICKS(1));
+  }
+}
+
+void vTaskSupervisor(void *pvParameters)
+{
+  (void) pvParameters;
+  sensor_measure_s tmp;
+  uint32_t counter = 0;
+  sensors_data_s data =
+   {.temperature = 0, .pressure = 0, .humidity = 0, .luminosity = 0, .gas = 0};
+
+
+  printf("Debug Supervisor\r\n");
+
+  while(1)
+  {
+    /* Wait ALL data treatment before sending to Communicator task */
+    while(counter != 4)
+    {
+      xQueueReceive(xQueueSensorsToSupervisor, &tmp, portMAX_DELAY);
+      counter++;
+      switch(tmp.id)
+      {
+        case('T'):
+          data.temperature = tmp.value;
+          break;
+        case('P'):
+          data.pressure = tmp.value;
+          break;
+        case('H'):
+          data.humidity = tmp.value;
+          break;
+        case('L'):
+          data.luminosity = tmp.value;
+          break;
+        case('G'):
+          data.gas = tmp.value;
+          break;
+        default:
+          break;
+      }
+    }
+    counter = 0;
+    xQueueSend(xQueueSupervisorToCommunicator, &data, pdMS_TO_TICKS(1));
   }
 }
 
@@ -323,12 +432,14 @@ void vTaskSensorLux(void *pvParameters)
 void vTaskCommunicator(void *pvParameters)
 {
   (void) pvParameters;
+  printf("Debug Communicator\r\n");
+
   static char buffer[MAX_BUFFER_UART_RX];
   static char p_msg[MAX_BUFFER_UART_RX];
   time_s time;
-  sensor_data_s data;
+  sensors_data_s sensors_data =
+    {.temperature = 0, .pressure = 0, .humidity = 0, .luminosity = 0, .gas = 0};
 
-  printf("Debug MSG\r\n");
   int8_t rslt = HC05_OK;
 
   vGPIO_Setup();
@@ -360,19 +471,21 @@ void vTaskCommunicator(void *pvParameters)
   /* Decode buffer for extracting date and time calendar */
   vRTC_Calendar_Setup(time);
 
+  /* Only when RTC is set, you start sampling */
+  if(xTimerStart(xTimerSampling, 0) != pdPASS)
+  {
+    printf("[COM] Error to start sampling timer...\r\n");
+  }
+
   while(1)
   {
-    vTaskDelay(1000); // Very simple sampling
+    xQueueReceive(xQueueSupervisorToCommunicator,
+                  &sensors_data,
+                  portMAX_DELAY);
 
     vRTC_Calendar_Read(&time);
 
-    /* Fake Data */
-    data.temperature = 20;
-    data.pressure    = 2000;
-    data.humidity    = 48;
-    data.luminosity  = 1999;
-    data.gas         = 200;
-    Serialize_Msg(time, data, p_msg);
+    Serialize_Msg(time, sensors_data, p_msg);
     HC05_Send_Data(p_msg);
     printf("[HC05] %s\r\n", p_msg);
     if(HC05_Cmp_Response("ACK\r\n"))
