@@ -188,7 +188,7 @@ static uint8_t rtc_get_day(void)
   return val;
 }
 
-uint8_t vRTC_Calendar_Setup(time_s time)
+void rtc_calendar_config(void)
 {
   /* Enable Clock for RTC */
   rcc_periph_clock_enable(RCC_PWR);
@@ -203,6 +203,12 @@ uint8_t vRTC_Calendar_Setup(time_s time)
 
   while(!(RCC_BDCR & RCC_BDCR_LSERDY));
 
+  pwr_enable_backup_domain_write_protect();
+}
+
+void rtc_calendar_set(time_s time)
+{
+  pwr_disable_backup_domain_write_protect();
   rtc_unlock();
   /* Allow to update Calendar value */
   RTC_ISR |= RTC_ISR_INIT;
@@ -230,19 +236,20 @@ uint8_t vRTC_Calendar_Setup(time_s time)
   pwr_enable_backup_domain_write_protect();
 
   while(!(RTC_ISR & RTC_ISR_RSF)); // Wait for allowing Read Date and Time register
-
-  return 1;
-  //return(RTC_ISR & RTC_ISR_INITS);
 }
 
-void vRTC_Calendar_Read(time_s *time)
+time_s rtc_calendar_get(void)
 {
+  time_s tmp;
+
   while(RTC_CR & RTC_CR_BYPSHAD);
-  time->hour     = rtc_get_hour();
-  time->minute   = rtc_get_minute();
-  time->second   = rtc_get_second();
-  time->year     = rtc_get_year();
-  time->month    = rtc_get_month();
-  time->day      = rtc_get_day();
-  time->week_day = rtc_get_week_day();
+  tmp.hour     = rtc_get_hour();
+  tmp.minute   = rtc_get_minute();
+  tmp.second   = rtc_get_second();
+  tmp.year     = rtc_get_year();
+  tmp.month    = rtc_get_month();
+  tmp.day      = rtc_get_day();
+  tmp.week_day = rtc_get_week_day();
+
+  return tmp;
 }

@@ -24,7 +24,8 @@ typedef struct
   uint8_t  week_day; /* day of the week : Monday = 1 ... Sunday = 7 */
 } time_s;
 
-uint8_t vRTC_Calendar_Setup(time_s time);
-void vRTC_Calendar_Read(time_s *time);
+void rtc_calendar_config(void);
+void rtc_calendar_set(time_s time);
+time_s rtc_calendar_get(void);
 
 #endif /* RTC_H */
