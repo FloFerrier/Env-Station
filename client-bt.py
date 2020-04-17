@@ -1,4 +1,6 @@
-# Send date and time by bluetooth to STM32
+# Get data sensors from STM32 platform with Bluetooth module
+import signal
+import click
 import bluetooth as bt
 import time
 
@@ -53,16 +55,23 @@ def get_msg(client_bt):
         msg_recv += c
     return msg_recv
 
-def main():
+@click.command()
+@click.option("--init", "-i", is_flag=True)
+def cli(init):
     client_bt = bt.BluetoothSocket(bt.RFCOMM)
     client_bt.connect(("98:D3:61:FD:63:8F", 1))
 
-    client_bt.send("READY\r\n")
+    def exit(signum, frame):
+        client_bt.close()
+        exit()
+    signal.signal(signal.SIGTERM, exit)
 
-    date_send = time.localtime()
-    msg_send = serializeDate(date_send)
-    #print(msg_send)
-    client_bt.send(msg_send.encode('ASCII'))
+    if (init):
+        client_bt.send("READY\r\n")
+        date_send = time.localtime()
+        msg_send = serializeDate(date_send)
+        #print(msg_send)
+        client_bt.send(msg_send.encode('ASCII'))
 
     while True:
         msg_recv = get_msg(client_bt)
@@ -75,7 +84,6 @@ def main():
         print("Gas :", gas)
         print("\r\n")
         client_bt.send("ACK\r\n")
-    client_bt.close()
 
 if __name__ == "__main__":
-    main()
+    cli()
