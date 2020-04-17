@@ -3,8 +3,8 @@
 time_s Deserialize_Time(char *buffer)
 {
   time_s time;
-  uint8_t i = 0;         // Current position in the buffer
-  uint8_t b = 0;         // First digit for an element
+  uint8_t i = 2;         // Current position in the buffer
+  uint8_t b = i;         // First digit for an element
   uint8_t size_elmt = 0; // Size of an element
   uint8_t i_elmt = 0;    // Position of current element in the buffer
   char elmt[MAX_BUFFER_UART_RX]; // Buffer for storing element
@@ -132,14 +132,14 @@ static void Serialize_Data(char *id, uint32_t data, char *p_data, size_t *size_m
   *size_msg = strlen(p_data);
 }
 
-void Serialize_Msg(time_s time, sensors_data_s data, char *p_msg)
+void Serialize_Msg(sensors_data_s data, char *p_msg)
 {
   static char p_time[MAX_BUFFER_UART_RX];
   static char p_data[MAX_BUFFER_UART_RX];
   static size_t size = 0;
 
   memset(p_msg, '\0', MAX_BUFFER_UART_RX);
-  Serialize_Time(time, p_time, &size);
+  Serialize_Time(data.horodatage, p_time, &size);
   strncat(p_msg, p_time, size);
   strncat(p_msg, ",", 1);
   Serialize_Data("T", data.temperature, p_data, &size); // Temperature

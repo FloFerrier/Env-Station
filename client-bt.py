@@ -3,7 +3,8 @@ import bluetooth as bt
 import time
 
 def serializeDate(date):
-    tmp = str(date.tm_year) + ':' + \
+    tmp = 'D='                    + \
+          str(date.tm_year) + ':' + \
           str(date.tm_mon)  + ':' + \
           str(date.tm_mday) + ':' + \
           str(date.tm_wday) + ':' + \

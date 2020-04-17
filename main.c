@@ -52,6 +52,7 @@ static void vTaskBME680(void *pvParameters);
 static void vTaskSensorLux(void *pvParameters);
 static void vTaskSupervisor(void *pvParameters);
 static void vTaskCommunicator(void *pvParameters);
+static void vTaskRtcUpdate(void *pvParameters);
 
 static void vTimerCallback(TimerHandle_t xTimer);
 
@@ -73,6 +74,7 @@ int main(void)
   BaseType_t task3_status = pdFALSE;
   BaseType_t task4_status = pdFALSE;
   BaseType_t task5_status = pdFALSE;
+  BaseType_t task6_status = pdFALSE;
 
   task1_status = xTaskCreate(vTaskSafety,
                             "Task Safety",
@@ -85,14 +87,14 @@ int main(void)
                             "Task BME680",
                             configMINIMAL_STACK_SIZE,
                             NULL,
-                            configMAX_PRIORITIES-4,
+                            configMAX_PRIORITIES-5,
                             &xTaskBME680);
 
   task3_status = xTaskCreate(vTaskSensorLux,
                             "Task Sensor Lux",
                             configMINIMAL_STACK_SIZE,
                             NULL,
-                            configMAX_PRIORITIES-5,
+                            configMAX_PRIORITIES-6,
                             &xTaskLUX);
 
   task4_status = xTaskCreate(vTaskCommunicator,
@@ -104,6 +106,13 @@ int main(void)
 
   task5_status = xTaskCreate(vTaskSupervisor,
                             "Task Supervisor",
+                            configMINIMAL_STACK_SIZE,
+                            NULL,
+                            configMAX_PRIORITIES-4,
+                            NULL);
+
+  task6_status = xTaskCreate(vTaskRtcUpdate,
+                            "Task RTC Update",
                             configMINIMAL_STACK_SIZE,
                             NULL,
                             configMAX_PRIORITIES-3,
@@ -125,6 +134,7 @@ int main(void)
      (task3_status == pdPASS)            &&
      (task4_status == pdPASS)            &&
      (task5_status == pdPASS)            &&
+     (task6_status == pdPASS)            &&
      (xTimerSampling != NULL)            &&
      (xQueueAdcSensorLux != NULL)        &&
      (xQueueUartIsrRx != NULL)           &&
@@ -387,9 +397,10 @@ void vTaskSupervisor(void *pvParameters)
   (void) pvParameters;
   sensor_measure_s tmp;
   uint32_t counter = 0;
-  sensors_data_s data =
-   {.temperature = 0, .pressure = 0, .humidity = 0, .luminosity = 0, .gas = 0};
-
+  time_s time = {.year = 0, .month = 0, .day = 0, .week_day = 0,
+    .hour = 0, .minute = 0, .second = 0};
+  sensors_data_s data = {.horodatage = time, .temperature = 0,
+    .pressure = 0, .humidity = 0, .luminosity = 0, .gas = 0};
 
   printf("Debug Supervisor\r\n");
 
@@ -422,12 +433,13 @@ void vTaskSupervisor(void *pvParameters)
       }
     }
     counter = 0;
+    data.horodatage = rtc_calendar_get();
     xQueueSend(xQueueSupervisorToCommunicator, &data, pdMS_TO_TICKS(1));
   }
 }
 
-/* Bluetooth communication - HC05
- * Used UART3
+/* Bluetooth communication
+ * Used UART3 and HC05 bluetooth module
  */
 void vTaskCommunicator(void *pvParameters)
 {
@@ -436,9 +448,10 @@ void vTaskCommunicator(void *pvParameters)
 
   static char buffer[MAX_BUFFER_UART_RX];
   static char p_msg[MAX_BUFFER_UART_RX];
-  time_s time;
-  sensors_data_s sensors_data =
-    {.temperature = 0, .pressure = 0, .humidity = 0, .luminosity = 0, .gas = 0};
+  time_s time = {.year = 0, .month = 0, .day = 0, .week_day = 0,
+    .hour = 0, .minute = 0, .second = 0};
+  sensors_data_s sensors_data = {.horodatage = time, .temperature = 0,
+    .pressure = 0, .humidity = 0, .luminosity = 0, .gas = 0};
 
   int8_t rslt = HC05_OK;
 
@@ -457,20 +470,6 @@ void vTaskCommunicator(void *pvParameters)
   /* Eliminating garbage data on UART */
   HC05_Receive(buffer);
 
-  /* Wait msg with Time setting */
-  HC05_Receive(buffer);
-  time = Deserialize_Time(buffer);
-  printf("[RTC] Y:%d M:%d D:%d WD:%d H:%d M:%d S:%d\r\n",
-    time.year,
-    time.month,
-    time.day,
-    time.week_day,
-    time.hour,
-    time.minute,
-    time.second);
-  /* Decode buffer for extracting date and time calendar */
-  vRTC_Calendar_Setup(time);
-
   /* Only when RTC is set, you start sampling */
   if(xTimerStart(xTimerSampling, 0) != pdPASS)
   {
@@ -483,9 +482,7 @@ void vTaskCommunicator(void *pvParameters)
                   &sensors_data,
                   portMAX_DELAY);
 
-    vRTC_Calendar_Read(&time);
-
-    Serialize_Msg(time, sensors_data, p_msg);
+    Serialize_Msg(sensors_data, p_msg);
     HC05_Send_Data(p_msg);
     printf("[HC05] %s\r\n", p_msg);
     if(HC05_Cmp_Response("ACK\r\n"))
@@ -495,6 +492,47 @@ void vTaskCommunicator(void *pvParameters)
     else
     {
       printf("[HC05] No ACK ...\r\n");
+    }
+  }
+}
+
+/* Update RTC calendar
+ * Used UART3 and HC05 bluetooth module
+ */
+void vTaskRtcUpdate(void *pvParameters)
+{
+  (void) pvParameters;
+
+  static char buffer[MAX_BUFFER_UART_RX];
+  time_s time = {.year = 0, .month = 0, .day = 0, .week_day = 0,
+    .hour = 0, .minute = 0, .second = 0};
+
+  rtc_calendar_config();
+
+  printf("Debug RTC Update\r\n");
+
+  while(1)
+  {
+    /* Read item without removing from the queue */
+    xQueuePeek(xQueueUartIsrRx, buffer, portMAX_DELAY);
+
+    /* Test item if it is a time msg*/
+    if(strncmp(buffer, "D=", 2) == 0)
+    {
+      /* Remove item from the queue if it is a time msg */
+      HC05_Receive(buffer);
+
+      time = Deserialize_Time(buffer);
+      printf("[RTC] Y:%d M:%d D:%d WD:%d H:%d M:%d S:%d\r\n",
+        time.year,
+        time.month,
+        time.day,
+        time.week_day,
+        time.hour,
+        time.minute,
+        time.second);
+      /* Decode buffer for extracting date and time calendar */
+      rtc_calendar_set(time);
     }
   }
 }
