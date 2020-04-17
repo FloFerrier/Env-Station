@@ -27,6 +27,8 @@
 
 #include "Tool/printf/printf.h"
 
+#define QUEUE_ITEM_MAX_TO_SEND 20 // n latest data ready to be send
+
 typedef struct
 {
   char id;
@@ -127,7 +129,7 @@ int main(void)
   xQueueAdcSensorLux = xQueueCreate(10, sizeof(uint32_t));
   xQueueUartIsrRx = xQueueCreate(10, sizeof(char) * MAX_BUFFER_UART_RX);
   xQueueSensorsToSupervisor = xQueueCreate(10, sizeof(sensor_measure_s));
-  xQueueSupervisorToCommunicator = xQueueCreate(10, sizeof(sensors_data_s));
+  xQueueSupervisorToCommunicator = xQueueCreate(QUEUE_ITEM_MAX_TO_SEND, sizeof(sensors_data_s));
 
   if((task1_status == pdPASS)            &&
      (task2_status == pdPASS)            &&
@@ -395,6 +397,7 @@ void vTaskSensorLux(void *pvParameters)
 void vTaskSupervisor(void *pvParameters)
 {
   (void) pvParameters;
+  UBaseType_t uxFreeItems = 0;
   sensor_measure_s tmp;
   uint32_t counter = 0;
   time_s time = {.year = 0, .month = 0, .day = 0, .week_day = 0,
@@ -434,6 +437,13 @@ void vTaskSupervisor(void *pvParameters)
     }
     counter = 0;
     data.horodatage = rtc_calendar_get();
+
+    /* Store n lastest data sensors */
+    uxFreeItems = uxQueueSpacesAvailable(xQueueSupervisorToCommunicator);
+    if(uxFreeItems == 0)
+    {
+      xQueueReset(xQueueSupervisorToCommunicator);
+    }
     xQueueSend(xQueueSupervisorToCommunicator, &data, pdMS_TO_TICKS(1));
   }
 }
