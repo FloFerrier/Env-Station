@@ -2,7 +2,28 @@
 import signal
 import click
 import bluetooth as bt
+import pandas as pd
 import time
+
+class Frame:
+    def __init__(self):
+        self.list = { "Horodatage": "0",
+                      "Temperature": 0,
+                      "Humidity": 0,
+                      "Pressure": 0,
+                      "Gas": 0,
+                      "Luminosity": 0}
+
+    def upgrade(self, horodatage, temperature, humidity, pressure, gas, luminosity):
+        self.list["Horodatage"] = horodatage
+        self.list["Temperature"] = temperature
+        self.list["Humidity"] = humidity
+        self.list["Pressure"] = pressure
+        self.list["Gas"] = gas
+        self.list["Luminosity"] = luminosity
+
+    def dict(self):
+        return [self.list]
 
 def serializeDate(date):
     tmp = 'D='                    + \
@@ -60,8 +81,11 @@ def get_msg(client_bt):
 def cli(init):
     client_bt = bt.BluetoothSocket(bt.RFCOMM)
     client_bt.connect(("98:D3:61:FD:63:8F", 1))
+    data = Frame()
+    db = pd.DataFrame()
 
     def exit(signum, frame):
+        db.to_csv('file.csv')
         client_bt.close()
         exit()
     signal.signal(signal.SIGTERM, exit)
@@ -75,14 +99,10 @@ def cli(init):
 
     while True:
         msg_recv = get_msg(client_bt)
-        date, temperature, pressure, humidity, luminosity, gas = deserializeMsg(msg_recv)
-        print("Date :", date)
-        print("Temperature : ", temperature)
-        print("Pressure :", pressure)
-        print("Humidity :", humidity)
-        print("Luminosity :", luminosity)
-        print("Gas :", gas)
-        print("\r\n")
+        horodatage, temperature, pressure, humidity, luminosity, gas = deserializeMsg(msg_recv)
+        data.upgrade(horodatage, temperature, humidity, pressure, gas, luminosity)
+        db = db.append(data.dict(), ignore_index=True)
+        print(db.tail(1))
         client_bt.send("ACK\r\n")
 
 if __name__ == "__main__":
