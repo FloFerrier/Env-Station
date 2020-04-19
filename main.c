@@ -11,7 +11,6 @@
 #include "queue.h"
 #include "timers.h"
 
-#include "BSP/button.h"
 #include "BSP/led.h"
 #include "BSP/uart.h"
 #include "BSP/gpio.h"
@@ -38,7 +37,6 @@ typedef struct
 /* Necessary for FreeRTOS */
 uint32_t SystemCoreClock;
 
-static TaskHandle_t xTaskSafety = NULL;
 static TaskHandle_t xTaskBME680 = NULL;
 static TaskHandle_t xTaskLUX = NULL;
 
@@ -49,7 +47,6 @@ static QueueHandle_t xQueueUartIsrRx = NULL;
 static QueueHandle_t xQueueSensorsToSupervisor = NULL;
 static QueueHandle_t xQueueSupervisorToCommunicator = NULL;
 
-static void vTaskSafety(void *pvParameters);
 static void vTaskBME680(void *pvParameters);
 static void vTaskSensorLux(void *pvParameters);
 static void vTaskSupervisor(void *pvParameters);
@@ -71,19 +68,11 @@ int main(void)
   vConsole_Setup();
 
   /* Tasks Creation */
-  BaseType_t task1_status = pdFALSE;
   BaseType_t task2_status = pdFALSE;
   BaseType_t task3_status = pdFALSE;
   BaseType_t task4_status = pdFALSE;
   BaseType_t task5_status = pdFALSE;
   BaseType_t task6_status = pdFALSE;
-
-  task1_status = xTaskCreate(vTaskSafety,
-                            "Task Safety",
-                            configMINIMAL_STACK_SIZE,
-                            NULL,
-                            configMAX_PRIORITIES-1,
-                            &xTaskSafety);
 
   task2_status = xTaskCreate(vTaskBME680,
                             "Task BME680",
@@ -131,8 +120,7 @@ int main(void)
   xQueueSensorsToSupervisor = xQueueCreate(10, sizeof(sensor_measure_s));
   xQueueSupervisorToCommunicator = xQueueCreate(QUEUE_ITEM_MAX_TO_SEND, sizeof(sensors_data_s));
 
-  if((task1_status == pdPASS)            &&
-     (task2_status == pdPASS)            &&
+  if((task2_status == pdPASS)            &&
      (task3_status == pdPASS)            &&
      (task4_status == pdPASS)            &&
      (task5_status == pdPASS)            &&
@@ -150,15 +138,6 @@ int main(void)
   while(1);
 
   return 0;
-}
-
-/* ISR from Pushed-Button */
-void exti15_10_isr(void)
-{
-  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-
-  exti_reset_request(EXTI13);
-  vTaskNotifyGiveFromISR(xTaskSafety, &xHigherPriorityTaskWoken);
 }
 
 /* ISR for sampling Luminosity measurement */
@@ -205,25 +184,6 @@ void vTimerCallback(TimerHandle_t xTimer)
   (void) xTimer;
   xTaskNotifyGive(xTaskBME680);
   xTaskNotifyGive(xTaskLUX);
-}
-
-/* Debug task
- * Use Pushed-Button and LED
- */
-void vTaskSafety(void *pvParameters)
-{
-  (void) pvParameters;
-  printf("Debug LED\r\n");
-
-  vLed_Setup();
-  vPB_Setup();
-
-  while(1)
-  {
-    /* Wait Pushed Button */
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    gpio_toggle(GPIOA, GPIO5);
-  }
 }
 
 /* Get and compute BME680 data sensor
