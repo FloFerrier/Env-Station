@@ -7,7 +7,7 @@ import time
 
 class Frame:
     def __init__(self):
-        self.list = { "Horodatage": "0",
+        self.list = { "Horodatage": "0000-00-00 00:00:00",
                       "Temperature": 0,
                       "Humidity": 0,
                       "Pressure": 0,
@@ -36,9 +36,6 @@ def serializeDate(date):
           str(date.tm_sec)  + '\n'
     return tmp
 
-def deserializeDate(msg_date):
-    return msg_date
-
 def extractFrame(msg):
     end = msg.find(',')
     if end == -1:
@@ -55,7 +52,7 @@ def deserializeMsg(msg):
         index += i
         nb_data -= 1
         if id == "D":
-            date = deserializeDate(msg_data)
+            horodatage = msg_data
         if id == "T":
             temperature = int(msg_data)
         if id == "P":
@@ -68,7 +65,7 @@ def deserializeMsg(msg):
             luminosity = int(pow(10, current / 10.0))
         if id == "G":
             gas = int(msg_data)
-    return date, temperature, pressure, humidity, luminosity, gas
+    return horodatage, temperature, pressure, humidity, luminosity, gas
 
 def get_msg(client_bt):
     c = 0

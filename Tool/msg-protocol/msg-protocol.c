@@ -74,35 +74,31 @@ static void Serialize_Time(time_s time, char *p_time, size_t *size_msg)
 
   strncpy(p_time, "D=", 2);
 
-  for(uint8_t i= 1; i<= 7; i++)
+  for(uint8_t i= 1; i<= 6; i++)
   {
     switch(i)
     {
       case(1):
         itoa(time.year, p_tmp, 10);
-        strncat(p_tmp, ":", 1);
+        strncat(p_tmp, "-", 1);
         break;
       case(2):
         itoa(time.month, p_tmp, 10);
-        strncat(p_tmp, ":", 1);
+        strncat(p_tmp, "-", 1);
         break;
       case(3):
         itoa(time.day, p_tmp, 10);
-        strncat(p_tmp, ":", 1);
+        strncat(p_tmp, " ", 1);
         break;
       case(4):
-        itoa(time.week_day, p_tmp, 10);
-        strncat(p_tmp, ":", 1);
-        break;
-      case(5):
         itoa(time.hour, p_tmp, 10);
         strncat(p_tmp, ":", 1);
         break;
-      case(6):
+      case(5):
         itoa(time.minute, p_tmp, 10);
         strncat(p_tmp, ":", 1);
         break;
-      case(7):
+      case(6):
         itoa(time.second, p_tmp, 10);
         break;
       default:
