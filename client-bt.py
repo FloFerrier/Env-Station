@@ -63,7 +63,9 @@ def deserializeMsg(msg):
         if id == "H":
             humidity = int(msg_data)
         if id == "L":
-            luminosity = int(msg_data) # Add log(X)
+            # Receive voltage from uC (convert to uA) and Lux
+            current = int(msg_data) / 68.0
+            luminosity = int(pow(10, current / 10.0))
         if id == "G":
             gas = int(msg_data)
     return date, temperature, pressure, humidity, luminosity, gas
