@@ -422,9 +422,13 @@ void vTaskCommunicator(void *pvParameters)
     .hour = 0, .minute = 0, .second = 0};
   sensors_data_s sensors_data = {.horodatage = time, .temperature = 0,
     .pressure = 0, .humidity = 0, .luminosity = 0, .gas = 0};
+  led_s led_green = {.port = GPIOC, .pin = GPIO7};
+  led_s led_red = {.port = GPIOA, .pin = GPIO9};
 
   int8_t rslt = HC05_OK;
 
+  vLed_Setup(led_green);
+  vLed_Setup(led_red);
   vGPIO_Setup();
   vUART_Setup();
 
@@ -433,6 +437,7 @@ void vTaskCommunicator(void *pvParameters)
   if(rslt != HC05_OK)
   {
     printf("[HC05] Setup fail ...\r\n");
+    vLed_Action(led_red, TOGGLE);
   }
 
   printf("[HC05] Data Mode Start !\r\n");
@@ -458,10 +463,12 @@ void vTaskCommunicator(void *pvParameters)
     if(HC05_Cmp_Response("ACK\r\n"))
     {
       printf("[HC05] ACK !\r\n");
+      vLed_Action(led_green, TOGGLE);
     }
     else
     {
       printf("[HC05] No ACK ...\r\n");
+      vLed_Action(led_red, TOGGLE);
     }
   }
 }
