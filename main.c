@@ -1,63 +1,4 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include <libopencm3/cm3/systick.h>
-
-#include "FreeRTOS.h"
-#include "task.h"
-#include "queue.h"
-#include "timers.h"
-
-#include "BSP/led.h"
-#include "BSP/uart.h"
-#include "BSP/gpio.h"
-#include "BSP/i2c.h"
-#include "BSP/adc.h"
-#include "BSP/rtc.h"
-
-#include "Driver/GA1A1S202WP/ga1a1s202wp.h"
-#include "Driver/BME680/bme680.h"
-#include "Driver/HC05/hc05.h"
-
-#include "Tool/msg-protocol/msg-protocol.h"
-
-#include "Tool/printf/printf.h"
-
-#define QUEUE_ITEM_MAX_TO_SEND 20 // n latest data ready to be send
-
-typedef struct
-{
-  char id;
-  uint32_t value;
-} sensor_measure_s;
-
-/* Necessary for FreeRTOS */
-uint32_t SystemCoreClock;
-
-static TaskHandle_t xTaskBME680 = NULL;
-static TaskHandle_t xTaskLUX = NULL;
-
-static TimerHandle_t xTimerSampling = NULL;
-
-static QueueHandle_t xQueueAdcSensorLux = NULL;
-static QueueHandle_t xQueueUartIsrRx = NULL;
-static QueueHandle_t xQueueSensorsToSupervisor = NULL;
-static QueueHandle_t xQueueSupervisorToCommunicator = NULL;
-
-static void vTaskBME680(void *pvParameters);
-static void vTaskSensorLux(void *pvParameters);
-static void vTaskSupervisor(void *pvParameters);
-static void vTaskCommunicator(void *pvParameters);
-static void vTaskRtcUpdate(void *pvParameters);
-
-static void vTimerCallback(TimerHandle_t xTimer);
-
-void HC05_Receive(char *p_str);
-void HC05_Timer(uint32_t time);
-void user_delay_ms(uint32_t period);
+#include "main.h"
 
 int main(void)
 {
@@ -67,47 +8,40 @@ int main(void)
   /* Console Debug */
   vConsole_Setup();
 
-  /* Tasks Creation */
-  BaseType_t task2_status = pdFALSE;
-  BaseType_t task3_status = pdFALSE;
-  BaseType_t task4_status = pdFALSE;
-  BaseType_t task5_status = pdFALSE;
-  BaseType_t task6_status = pdFALSE;
+  xTaskCreate(vTaskBME680,
+              "BME680",
+              TASK_BME680_STACK,
+              NULL,
+              TASK_BME680_PRIO,
+              &xTaskBME680);
 
-  task2_status = xTaskCreate(vTaskBME680,
-                            "Task BME680",
-                            configMINIMAL_STACK_SIZE,
-                            NULL,
-                            configMAX_PRIORITIES-5,
-                            &xTaskBME680);
+  xTaskCreate(vTaskSensorLux,
+              "GA1A1S202WP",
+              TASK_GA1A1S202WP_STACK,
+              NULL,
+              TASK_GA1A1S202WP_PRIO,
+              &xTaskLUX);
 
-  task3_status = xTaskCreate(vTaskSensorLux,
-                            "Task Sensor Lux",
-                            configMINIMAL_STACK_SIZE,
-                            NULL,
-                            configMAX_PRIORITIES-6,
-                            &xTaskLUX);
+  xTaskCreate(vTaskCommunicator,
+              "Communicator",
+              TASK_COMMUNICATOR_STACK,
+              NULL,
+              TASK_COMMUNICATOR_PRIO,
+              NULL);
 
-  task4_status = xTaskCreate(vTaskCommunicator,
-                            "Task Communicator",
-                            configMINIMAL_STACK_SIZE,
-                            NULL,
-                            configMAX_PRIORITIES-2,
-                            NULL);
+  xTaskCreate(vTaskSupervisor,
+              "Supervisor",
+              TASK_SUPERVISOR_STACK,
+              NULL,
+              TASK_SUPERVISOR_PRIO,
+              NULL);
 
-  task5_status = xTaskCreate(vTaskSupervisor,
-                            "Task Supervisor",
-                            configMINIMAL_STACK_SIZE,
-                            NULL,
-                            configMAX_PRIORITIES-4,
-                            NULL);
-
-  task6_status = xTaskCreate(vTaskRtcUpdate,
-                            "Task RTC Update",
-                            configMINIMAL_STACK_SIZE,
-                            NULL,
-                            configMAX_PRIORITIES-3,
-                            NULL);
+  xTaskCreate(vTaskRtcUpdate,
+              "RTC Updater",
+              TASK_RTC_UPDATER_STACK,
+              NULL,
+              TASK_RTC_UPDATER_PRIO,
+              NULL);
 
   xTimerSampling = xTimerCreate("Timer Sampling",
                             pdMS_TO_TICKS(2000),
@@ -120,20 +54,8 @@ int main(void)
   xQueueSensorsToSupervisor = xQueueCreate(10, sizeof(sensor_measure_s));
   xQueueSupervisorToCommunicator = xQueueCreate(QUEUE_ITEM_MAX_TO_SEND, sizeof(sensors_data_s));
 
-  if((task2_status == pdPASS)            &&
-     (task3_status == pdPASS)            &&
-     (task4_status == pdPASS)            &&
-     (task5_status == pdPASS)            &&
-     (task6_status == pdPASS)            &&
-     (xTimerSampling != NULL)            &&
-     (xQueueAdcSensorLux != NULL)        &&
-     (xQueueUartIsrRx != NULL)           &&
-     (xQueueSensorsToSupervisor != NULL) &&
-     (xQueueSupervisorToCommunicator != NULL))
-  {
-    vTaskStartScheduler();
-    taskENABLE_INTERRUPTS();
-  }
+  vTaskStartScheduler();
+  taskENABLE_INTERRUPTS();
 
   while(1);
 
@@ -202,14 +124,14 @@ void vTaskBME680(void *pvParameters)
   vI2C_Setup();
 
   /* Initialization */
-  struct bme680_dev bme680_chip;
-
-  bme680_chip.dev_id = BME680_I2C_ADDR_PRIMARY;
-  bme680_chip.intf = BME680_I2C_INTF;
-  bme680_chip.read = xI2C_Read;
-  bme680_chip.write = xI2C_Write;
-  bme680_chip.delay_ms = user_delay_ms;
-  bme680_chip.amb_temp = 19;
+  struct bme680_dev bme680_chip = {
+    .dev_id = BME680_I2C_ADDR_PRIMARY,
+    .intf = BME680_I2C_INTF,
+    .read = xI2C_Read,
+    .write = xI2C_Write,
+    .delay_ms = user_delay_ms,
+    .amb_temp = 19
+  };
 
   int8_t rslt = BME680_OK;
 
