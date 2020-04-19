@@ -1,39 +1,40 @@
-# Generic microcontroller project
-This repository targets Cortex-M and other type of microcontrollers projects either bare metal or OS based. It provide intuitive make targets to help quickly getting into developement stage.
-By default the hardware abstraction library (HAL) is libopencm3 and the provided OS, if needed, is FreeRTOS. However this projet aim to allow easy OS or HAL changement.
+# ENVIRONMENTAL STATION
+A prototype platform for measuring environmental values as temperature,
+humidity, gas, etc ...
+Based on Open Source tools for developping the embedded system.
 
-## Quick start:
-To start a new project edit the config/config.mk file.
+## Development environment
+### Hardware
+- Nucleo Board
+- Microcontroller : STM32F446RE
+- Processor : Cortex M4
+### Software
+- HAL (Hardware Abstraction Layer) : libopencm3
+- Embedded OS (Operation System) : FreeRTOS
+- Toolchain : ARM with GCC, GDB and OpenOCD
 
-In particular you have to :
- - Edit the MCU_TYPE, MCU_FAMILLY, MCU_CORE and ARCH_FLAGS variables to be consistant with your microcontroller
- - Edit the INTERFACE, TRANSPORT and TARGET variables to reflect the debug probe and protocol you are using
- - Edit the OS and HAL variables to select OS and HAL you want to use (see: Using an alternative OS or HAL)
- - Edit the LINK_FILE variable to give the .ld file you want to use (or edit config/link.ld file)
+## Embedded System
+### Sensors
+- BME680 : Temperature, humidity, pressure and gas (with i2c bus).
+- SGP30 : Gas (with an equivalent level of CO2 with i2c bus).
+- GA1A1S202WP : Luminosity (with analog pin).
+### Communication
+- HC05 : Bluetooth module with SPP (Serial Port Protocol).
 
-If you need to use libopencm3 and/or FreeRTOS you will have to init and uddate the submodules:
-```sh
-$> git submodules init
-$> git submodules update
-```
+The prototype sends data to a python script which receive and store sensor datas.
 
-### Main make targets:
- - release: compilation in release mode
- - debug: compilation in debug mode
- - flash: program the binary (release) on the microcontroller target
- - gdb: program the binary (debug) on the target and launch a gdb instance
+## Communication protocol
+Protocol between embedded system and python scrip is a personal protocol.
+- "D=2020-4-19 18:10:13,T=20,P=999,H=50,L=758,G=0\n"
+Each frame must finish by an ASCII character '\n', used for delimiting each message frame.
+Sensor datas have a specific operator as :
+- Horodatage : 'D' (gather date and time)
+- Temperature : 'T'
+- Pressure : 'P'
+- Humidity : 'H'
+- Luminosity : 'L'
+- Gas : 'G'
 
-### Folder tree:
- - config/: all configuration related files
- - HAL/: contain the HAL used for the project
- - OS/: contain the OS used for the project
- - blink.* : Blue Pill led blink demo. Uses libopencm3 and a FreeRTOS task.
-
-## Using an alternative HAL or OS:
- In order to use an alternative HAL you need to:
- - put the alternative HAL in HAL/<name of the HAL>
- - write a HAL/rules/<name of the HAL>.mk file using the HAL/rules/template.mk template
- - set the variable HAL in config/config.mk to <name of the HAL>
- - compile
-
-The steps are the same if you want to add an alternative OS (exept the directory is OS/).
+## Bugs
+- Luminosity sensor has sent as "voltage values", so the python script computes data (refer to GA1A1S202WP datasheet) => pow operation does not working.
+- SGP30 sensor does not working with the i2c BSP.
