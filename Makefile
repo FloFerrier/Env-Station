@@ -38,8 +38,8 @@ LDFLAGS+=$(patsubst %,-L%, $(LIB_PATH))
 LDFLAGS+=$(patsubst %,-l%, $(LIB_NAMES))
 
 
-SRC= $(wildcard APP/*.c) $(wildcard BSP/*.c) $(wildcard Driver/*/*.c) $(wildcard Tool/*/*.c)
-HDR= $(wildcard APP/*.h) $(wildcard BSP/*.h) $(wildcard Driver/*/*.h) $(wildcard Tool/*/*.h)
+SRC= $(wildcard APP/*.c) $(wildcard BSP/*.c) $(wildcard Drivers/*/*.c) $(wildcard Tools/*/*.c)
+HDR= $(wildcard APP/*.h) $(wildcard BSP/*.h) $(wildcard Drivers/*/*.h) $(wildcard Tools/*/*.h)
 OBJ= $(SRC:.c=.o)
 
 DEBUG_OBJ=$(addprefix $(DEBUG_DIR)/, $(OBJ))

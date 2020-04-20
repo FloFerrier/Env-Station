@@ -21,13 +21,13 @@
 #include "BSP/adc.h"
 #include "BSP/rtc.h"
 
-#include "Driver/GA1A1S202WP/ga1a1s202wp.h"
-#include "Driver/BME680/bme680.h"
-#include "Driver/HC05/hc05.h"
+#include "Drivers/GA1A1S202WP/ga1a1s202wp.h"
+#include "Drivers/BME680/bme680.h"
+#include "Drivers/HC05/hc05.h"
 
-#include "Tool/msg-protocol/msg-protocol.h"
+#include "Tools/msg-protocol/msg-protocol.h"
 
-#include "Tool/printf/printf.h"
+#include "Tools/printf/printf.h"
 
 /* Task Stack Size */
 #define TASK_BME680_STACK configMINIMAL_STACK_SIZE
