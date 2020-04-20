@@ -27,7 +27,7 @@ OS=FreeRTOS
 # heap implementation
 FREERTOS_HEAP_IMPLEM=4
 # MCU port
-FREERTOS_MCU_PORT=GCC/ARM_CM3
+FREERTOS_MCU_PORT=GCC/ARM_CM4F
 # config file
 FREERTOS_CONFIG=config/FreeRTOSConfig.h
 
