@@ -256,7 +256,7 @@ void vTaskSensorLux(void *pvParameters)
 
   uint32_t raw_value = 0;
   uint32_t volt_value = 0;
-  //double lux_value = 0;
+  double lux_value = 0.0;
 
   printf("[GA1A1S202WP] Setup finished.\r\n");
 
@@ -267,11 +267,10 @@ void vTaskSensorLux(void *pvParameters)
     adc_start_conversion_regular(ADC1);
     xQueueReceive(xQueueAdcSensorLux, &raw_value, portMAX_DELAY);
     volt_value = xAdcRawToVolt(raw_value);
-    /* BUG : double precision and function xVoltToLux */
-    //lux_value = xVoltToLux(volt_value);
-    printf("[LUX] Lux value : %d\r\n", volt_value);
+    lux_value = xVoltToLux(volt_value);
+    printf("[LUX] Lux value : %.lf\r\n", lux_value);
 
-    measure_luminosity.value = volt_value;
+    measure_luminosity.value = (int)lux_value;
     xQueueSend(xQueueSensorsToSupervisor, &measure_luminosity, pdMS_TO_TICKS(1));
   }
 }
