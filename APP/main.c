@@ -2,6 +2,8 @@
 
 int main(void)
 {
+  rcc_clock_setup_pll(rcc_hse_8mhz_3v3);
+
   SystemCoreClock = rcc_ahb_frequency;
   systick_set_frequency(configTICK_RATE_HZ, SystemCoreClock);
 
