@@ -1,6 +1,6 @@
 #include "led.h"
 
-void vled_setup(struct led_s led)
+void vLed_Setup(struct led_s led)
 {
   enum rcc_periph_clken rcc_port = 0;
 

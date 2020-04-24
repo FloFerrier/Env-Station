@@ -350,8 +350,8 @@ void vTaskCommunicator(void *pvParameters)
 
   int8_t rslt = HC05_OK;
 
-  vled_setup(led_green);
-  vled_setup(led_red);
+  vLed_Setup(led_green);
+  vLed_Setup(led_red);
   vGPIO_Setup();
   vUART_Setup();
 

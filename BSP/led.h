@@ -16,7 +16,7 @@ struct led_s
   uint16_t pin;
 };
 
-void vled_setup(struct led_s led);
+void vLed_Setup(struct led_s led);
 void vLed_Action(struct led_s led, enum State state);
 
 #endif /* LED_H */
