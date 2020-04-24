@@ -45,11 +45,11 @@
 
 #define QUEUE_ITEM_MAX_TO_SEND 20 // n latest data ready to be send
 
-typedef struct
+struct sensor_measure_s
 {
   char id;
   uint32_t value;
-} sensor_measure_s;
+};
 
 /* Necessary for FreeRTOS */
 uint32_t SystemCoreClock;

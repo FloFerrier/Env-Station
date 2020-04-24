@@ -10,13 +10,13 @@ enum State {
   TOGGLE
 };
 
-typedef struct
+struct led_s
 {
   uint32_t port;
   uint16_t pin;
-} led_s;
+};
 
-void vLed_Setup(led_s led);
-void vLed_Action(led_s led, enum State state);
+void vled_setup(struct led_s led);
+void vLed_Action(struct led_s led, enum State state);
 
 #endif /* LED_H */

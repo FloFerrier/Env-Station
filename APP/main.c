@@ -53,8 +53,8 @@ int main(void)
 
   xQueueAdcSensorLux = xQueueCreate(10, sizeof(uint32_t));
   xQueueUartIsrRx = xQueueCreate(10, sizeof(char) * MAX_BUFFER_UART_RX);
-  xQueueSensorsToSupervisor = xQueueCreate(10, sizeof(sensor_measure_s));
-  xQueueSupervisorToCommunicator = xQueueCreate(QUEUE_ITEM_MAX_TO_SEND, sizeof(sensors_data_s));
+  xQueueSensorsToSupervisor = xQueueCreate(10, sizeof(struct sensor_measure_s));
+  xQueueSupervisorToCommunicator = xQueueCreate(QUEUE_ITEM_MAX_TO_SEND, sizeof(struct sensors_data_s));
 
   vTaskStartScheduler();
   taskENABLE_INTERRUPTS();
@@ -119,9 +119,9 @@ void vTaskBME680(void *pvParameters)
   (void) pvParameters;
   printf("Debug BME680\r\n");
 
-  sensor_measure_s measure_temperature = {.value = 0, .id = 'T'};
-  sensor_measure_s measure_pressure = {.value = 0, .id = 'P'};
-  sensor_measure_s measure_humidity = {.value = 0, .id = 'H'};
+  struct sensor_measure_s measure_temperature = {.value = 0, .id = 'T'};
+  struct sensor_measure_s measure_pressure = {.value = 0, .id = 'P'};
+  struct sensor_measure_s measure_humidity = {.value = 0, .id = 'H'};
 
   vI2C_Setup();
 
@@ -253,7 +253,7 @@ void vTaskSensorLux(void *pvParameters)
   (void) pvParameters;
   printf("Debug GA1A1S202WP\r\n");
 
-  sensor_measure_s measure_luminosity = {.value = 0, .id = 'L'};
+  struct sensor_measure_s measure_luminosity = {.value = 0, .id = 'L'};
   vADC_Setup();
 
   uint32_t raw_value = 0;
@@ -281,11 +281,11 @@ void vTaskSupervisor(void *pvParameters)
 {
   (void) pvParameters;
   UBaseType_t uxFreeItems = 0;
-  sensor_measure_s tmp;
+  struct sensor_measure_s tmp;
   uint32_t counter = 0;
   struct time_s time = {.year = 0, .month = 0, .day = 0, .week_day = 0,
     .hour = 0, .minute = 0, .second = 0};
-  sensors_data_s data = {.horodatage = time, .temperature = 0,
+  struct sensors_data_s data = {.horodatage = time, .temperature = 0,
     .pressure = 0, .humidity = 0, .luminosity = 0, .gas = 0};
 
   printf("Debug Supervisor\r\n");
@@ -343,15 +343,15 @@ void vTaskCommunicator(void *pvParameters)
   static char p_msg[MAX_BUFFER_UART_RX];
   struct time_s time = {.year = 0, .month = 0, .day = 0, .week_day = 0,
     .hour = 0, .minute = 0, .second = 0};
-  sensors_data_s sensors_data = {.horodatage = time, .temperature = 0,
+  struct sensors_data_s sensors_data = {.horodatage = time, .temperature = 0,
     .pressure = 0, .humidity = 0, .luminosity = 0, .gas = 0};
-  led_s led_green = {.port = GPIOC, .pin = GPIO7};
-  led_s led_red = {.port = GPIOA, .pin = GPIO9};
+  struct led_s led_green = {.port = GPIOC, .pin = GPIO7};
+  struct led_s led_red = {.port = GPIOA, .pin = GPIO9};
 
   int8_t rslt = HC05_OK;
 
-  vLed_Setup(led_green);
-  vLed_Setup(led_red);
+  vled_setup(led_green);
+  vled_setup(led_red);
   vGPIO_Setup();
   vUART_Setup();
 

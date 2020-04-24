@@ -128,7 +128,7 @@ static void Serialize_Data(char *id, uint32_t data, char *p_data, size_t *size_m
   *size_msg = strlen(p_data);
 }
 
-void Serialize_Msg(sensors_data_s data, char *p_msg)
+void Serialize_Msg(struct sensors_data_s data, char *p_msg)
 {
   static char p_time[MAX_BUFFER_UART_RX];
   static char p_data[MAX_BUFFER_UART_RX];

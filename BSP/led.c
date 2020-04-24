@@ -1,6 +1,6 @@
 #include "led.h"
 
-void vLed_Setup(led_s led)
+void vled_setup(struct led_s led)
 {
   enum rcc_periph_clken rcc_port = 0;
 
@@ -37,7 +37,7 @@ void vLed_Setup(led_s led)
   gpio_clear(led.port, led.pin);
 }
 
-void vLed_Action(led_s led, enum State state)
+void vLed_Action(struct led_s led, enum State state)
 {
   switch(state)
   {
