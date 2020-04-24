@@ -119,84 +119,20 @@ void vTaskBME680(void *pvParameters)
   (void) pvParameters;
   printf("Debug BME680\r\n");
 
-  struct sensor_measure_s measure_temperature = {.value = 0, .id = 'T'};
-  struct sensor_measure_s measure_pressure = {.value = 0, .id = 'P'};
-  struct sensor_measure_s measure_humidity = {.value = 0, .id = 'H'};
-
+  struct sensor_measure_s data[3] =
+  {
+    {.value = 0, .id = 'T'},
+    {.value = 0, .id = 'P'},
+    {.value = 0, .id = 'H'}
+  };
+  struct bme680_s tmp = {.temperature = 0, .pressure = 0, .humidity = 0};
   vI2C_Setup();
 
-  /* Initialization */
-  struct bme680_dev bme680_chip = {
-    .dev_id = BME680_I2C_ADDR_PRIMARY,
-    .intf = BME680_I2C_INTF,
-    .read = xI2C_Read,
-    .write = xI2C_Write,
-    .delay_ms = user_delay_ms,
-    .amb_temp = 19
-  };
-
-  int8_t rslt = BME680_OK;
-
-  if(rslt != BME680_OK)
+  if(xBme680_Setup() != 0)
   {
-    printf("[BME680] Reset fail ...\r\n");
+    printf("[BME680] Setup fail ...\r\n");
+    vTaskDelete(NULL);
   }
-
-  bme680_soft_reset(&bme680_chip);
-
-  rslt = BME680_OK;
-  rslt = bme680_init(&bme680_chip);
-
-  if(rslt != BME680_OK)
-  {
-    printf("[BME680] Init fail ...\r\n");
-  }
-
-  /* Configuration */
-  uint8_t set_required_settings;
-
-  /* Set the temperature, pressure and humidity settings */
-  bme680_chip.tph_sett.os_hum = BME680_OS_2X;
-  bme680_chip.tph_sett.os_pres = BME680_OS_4X;
-  bme680_chip.tph_sett.os_temp = BME680_OS_8X;
-  bme680_chip.tph_sett.filter = BME680_FILTER_SIZE_3;
-
-  /* Set the remaining gas sensor settings and link the heating profile */
-  bme680_chip.gas_sett.run_gas = BME680_DISABLE_GAS_MEAS;
-  /* Create a ramp heat waveform in 3 steps */
-  bme680_chip.gas_sett.heatr_temp = 320; /* degree Celsius */
-  bme680_chip.gas_sett.heatr_dur = 150; /* milliseconds */
-
-  /* Select the power mode */
-  /* Must be set before writing the sensor configuration */
-  bme680_chip.power_mode = BME680_FORCED_MODE;
-
-  /* Set the required sensor settings needed */
-  set_required_settings = BME680_OST_SEL    |
-                          BME680_OSP_SEL    |
-                          BME680_OSH_SEL    |
-                          BME680_FILTER_SEL;
-
-  /* Set the desired sensor configuration */
-  rslt = bme680_set_sensor_settings(set_required_settings, &bme680_chip);
-
-  if(rslt != BME680_OK)
-  {
-    printf("[BME680] Setting fail ...\r\n");
-  }
-
-  /* Set the power mode */
-  rslt = bme680_set_sensor_mode(&bme680_chip);
-
-  if(rslt != BME680_OK)
-  {
-    printf("[BME680] Power Mode fail ...\r\n");
-  }
-
-  uint16_t meas_period;
-  bme680_get_profile_dur(&meas_period, &bme680_chip);
-
-  struct bme680_field_data data;
 
   printf("[BME680] Setup finished.\r\n");
 
@@ -205,43 +141,24 @@ void vTaskBME680(void *pvParameters)
     /* Wait Sampling */
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-    /* Trigger the next measurement if you would like to read data out continuously */
-    if (bme680_chip.power_mode == BME680_FORCED_MODE)
-    {
-        rslt = bme680_set_sensor_mode(&bme680_chip);
-    }
-
-    if(rslt != BME680_OK)
-    {
-      printf("[BME680] Forced mode fail ...\r\n");
-    }
-
-    user_delay_ms(meas_period); /* Delay till the measurement is ready */
-
-    rslt = bme680_get_sensor_data(&data, &bme680_chip);
-
-    if(rslt != BME680_OK)
+    if(xBme680_Get_Data(&tmp) != 0)
     {
       printf("[BME680] Get Data fail ...\r\n");
-      measure_temperature.value = 0;
-      measure_pressure.value = 0;
-      measure_humidity.value = 0;
     }
     else
     {
-      measure_temperature.value = data.temperature / 100;
-      measure_pressure.value = data.pressure / 100;
-      measure_humidity.value = data.humidity / 1000;
-
+      data[0].value = tmp.temperature;
+      data[1].value = tmp.pressure;
+      data[2].value = tmp.humidity;
       printf("[BME680] T: %d, P: %d, H %d\r\n",
-          measure_temperature.value,
-          measure_pressure.value,
-          measure_humidity.value);
+          tmp.temperature,
+          tmp.pressure,
+          tmp.humidity);
     }
 
-    xQueueSend(xQueueSensorsToSupervisor, &measure_temperature, pdMS_TO_TICKS(1));
-    xQueueSend(xQueueSensorsToSupervisor, &measure_pressure, pdMS_TO_TICKS(1));
-    xQueueSend(xQueueSensorsToSupervisor, &measure_humidity, pdMS_TO_TICKS(1));
+    xQueueSend(xQueueSensorsToSupervisor, &data[0], pdMS_TO_TICKS(1));
+    xQueueSend(xQueueSensorsToSupervisor, &data[1], pdMS_TO_TICKS(1));
+    xQueueSend(xQueueSensorsToSupervisor, &data[2], pdMS_TO_TICKS(1));
   }
 }
 
@@ -445,11 +362,6 @@ void HC05_Receive(char *p_str)
 void HC05_Timer(uint32_t time)
 {
   vTaskDelay(pdMS_TO_TICKS(time));
-}
-
-void user_delay_ms(uint32_t period)
-{
-  vTaskDelay(pdMS_TO_TICKS(period));
 }
 
 void vApplicationStackOverflowHook(TaskHandle_t xTask, signed char *pcTaskName)

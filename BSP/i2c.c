@@ -13,28 +13,3 @@ void vI2C_Setup(void)
   i2c_set_speed(I2C1, i2c_speed_sm_100k, rcc_apb1_frequency / 1e6);
   i2c_peripheral_enable(I2C1);
 }
-
-int8_t xI2C_Read(uint8_t dev_id,
-                     uint8_t reg_addr,
-                     uint8_t *reg_data,
-                     uint16_t len)
-{
-  i2c_transfer7(I2C1, dev_id, &reg_addr, 1, reg_data, (size_t)len);
-
-  return 0;
-}
-
-int8_t xI2C_Write(uint8_t dev_id,
-                      uint8_t reg_addr,
-                      uint8_t *reg_data,
-                      uint16_t len)
-{
-  uint8_t buffer[len + 1];
-
-  memcpy(buffer, &reg_addr, 1);
-  memcpy(&(buffer[1]), reg_data, len);
-
-  i2c_transfer7(I2C1, dev_id, buffer, (size_t)(len + 1), NULL, 0);
-
-  return 0;
-}

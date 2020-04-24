@@ -22,7 +22,7 @@
 #include "BSP/rtc.h"
 
 #include "Drivers/GA1A1S202WP/ga1a1s202wp.h"
-#include "Drivers/BME680/bme680.h"
+#include "Drivers/BME680/wrapper.h"
 #include "Drivers/HC05/hc05.h"
 
 #include "Tools/msg-protocol/msg-protocol.h"
@@ -77,6 +77,5 @@ void vTimerCallback(TimerHandle_t xTimer);
 
 void HC05_Receive(char *p_str);
 void HC05_Timer(uint32_t time);
-void user_delay_ms(uint32_t period);
 
 #endif /* MAIN_H */
