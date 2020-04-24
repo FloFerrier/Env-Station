@@ -12,7 +12,7 @@
 
 typedef struct
 {
-  time_s   horodatage;
+  struct time_s   horodatage;
   uint32_t temperature;
   uint32_t humidity;
   uint32_t pressure;
@@ -20,7 +20,7 @@ typedef struct
   uint32_t gas;
 } sensors_data_s;
 
-time_s Deserialize_Time(char *buffer);
+struct time_s Deserialize_Time(char *buffer);
 void Serialize_Msg(sensors_data_s data,
                    char *p_msg);
 

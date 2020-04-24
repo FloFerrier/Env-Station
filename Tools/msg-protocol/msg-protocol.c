@@ -1,8 +1,8 @@
 #include "msg-protocol.h"
 
-time_s Deserialize_Time(char *buffer)
+struct time_s Deserialize_Time(char *buffer)
 {
-  time_s time;
+  struct time_s time;
   uint8_t i = 2;         // Current position in the buffer
   uint8_t b = i;         // First digit for an element
   uint8_t size_elmt = 0; // Size of an element
@@ -65,7 +65,7 @@ time_s Deserialize_Time(char *buffer)
   return time;
 }
 
-static void Serialize_Time(time_s time, char *p_time, size_t *size_msg)
+static void Serialize_Time(struct time_s time, char *p_time, size_t *size_msg)
 {
   char p_tmp[10];
   size_t size = 0;

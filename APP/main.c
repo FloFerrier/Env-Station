@@ -281,7 +281,7 @@ void vTaskSupervisor(void *pvParameters)
   UBaseType_t uxFreeItems = 0;
   sensor_measure_s tmp;
   uint32_t counter = 0;
-  time_s time = {.year = 0, .month = 0, .day = 0, .week_day = 0,
+  struct time_s time = {.year = 0, .month = 0, .day = 0, .week_day = 0,
     .hour = 0, .minute = 0, .second = 0};
   sensors_data_s data = {.horodatage = time, .temperature = 0,
     .pressure = 0, .humidity = 0, .luminosity = 0, .gas = 0};
@@ -339,7 +339,7 @@ void vTaskCommunicator(void *pvParameters)
 
   static char buffer[MAX_BUFFER_UART_RX];
   static char p_msg[MAX_BUFFER_UART_RX];
-  time_s time = {.year = 0, .month = 0, .day = 0, .week_day = 0,
+  struct time_s time = {.year = 0, .month = 0, .day = 0, .week_day = 0,
     .hour = 0, .minute = 0, .second = 0};
   sensors_data_s sensors_data = {.horodatage = time, .temperature = 0,
     .pressure = 0, .humidity = 0, .luminosity = 0, .gas = 0};
@@ -402,7 +402,7 @@ void vTaskRtcUpdate(void *pvParameters)
   (void) pvParameters;
 
   static char buffer[MAX_BUFFER_UART_RX];
-  time_s time = {.year = 0, .month = 0, .day = 0, .week_day = 0,
+  struct time_s time = {.year = 0, .month = 0, .day = 0, .week_day = 0,
     .hour = 0, .minute = 0, .second = 0};
 
   rtc_calendar_config();
