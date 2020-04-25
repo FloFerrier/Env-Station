@@ -8,18 +8,20 @@ import time
 class Frame:
     def __init__(self):
         self.list = { "Horodatage": "0000-00-00 00:00:00",
+                      "Voltage": 0,
+                      "Current": 0,
                       "Temperature": 0,
                       "Humidity": 0,
                       "Pressure": 0,
-                      "Gas": 0,
                       "Luminosity": 0}
 
-    def upgrade(self, horodatage, temperature, humidity, pressure, gas, luminosity):
+    def upgrade(self, horodatage, voltage, current, temperature, humidity, pressure, luminosity):
         self.list["Horodatage"] = horodatage
+        self.list["Voltage"] = voltage
+        self.list["Current"] = current
         self.list["Temperature"] = temperature
         self.list["Humidity"] = humidity
         self.list["Pressure"] = pressure
-        self.list["Gas"] = gas
         self.list["Luminosity"] = luminosity
 
     def dict(self):
@@ -53,6 +55,10 @@ def deserializeMsg(msg):
         nb_data -= 1
         if id == "D":
             horodatage = msg_data
+        if id == "V":
+            voltage = int(msg_data)
+        if id == "C":
+            current = int(msg_data)
         if id == "T":
             temperature = int(msg_data)
         if id == "P":
@@ -61,9 +67,7 @@ def deserializeMsg(msg):
             humidity = int(msg_data)
         if id == "L":
             luminosity = int(msg_data)
-        if id == "G":
-            gas = int(msg_data)
-    return horodatage, temperature, pressure, humidity, luminosity, gas
+    return horodatage, voltage, current, temperature, pressure, humidity, luminosity
 
 def get_msg(client_bt):
     c = 0
@@ -96,8 +100,8 @@ def cli(init):
 
     while True:
         msg_recv = get_msg(client_bt)
-        horodatage, temperature, pressure, humidity, luminosity, gas = deserializeMsg(msg_recv)
-        data.upgrade(horodatage, temperature, humidity, pressure, gas, luminosity)
+        horodatage, voltage, current, temperature, pressure, humidity, luminosity = deserializeMsg(msg_recv)
+        data.upgrade(horodatage, voltage, current, temperature, pressure, humidity, luminosity)
         db = db.append(data.dict(), ignore_index=True)
         print(db.tail(1))
         client_bt.send("ACK\r\n")

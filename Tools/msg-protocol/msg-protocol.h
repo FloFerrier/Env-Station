@@ -13,11 +13,12 @@
 struct sensors_data_s
 {
   struct time_s   horodatage;
+  uint32_t voltage;
+  uint32_t current;
   uint32_t temperature;
   uint32_t humidity;
   uint32_t pressure;
   uint32_t luminosity;
-  uint32_t gas;
 };
 
 struct time_s Deserialize_Time(char *buffer);

@@ -9,6 +9,8 @@ int main(void)
 
   /* Console Debug */
   vConsole_Setup();
+  /* I2C used by sensors */
+  vI2C_Setup();
 
   xTaskCreate(vTaskBME680,
               "BME680",
@@ -44,6 +46,13 @@ int main(void)
               NULL,
               TASK_RTC_UPDATER_PRIO,
               NULL);
+
+  xTaskCreate(vTaskIna219,
+              "INA219",
+              TASK_INA219_STACK,
+              NULL,
+              TASK_INA219_PRIO,
+              &xTaskINA219);
 
   xTimerSampling = xTimerCreate("Timer Sampling",
                             pdMS_TO_TICKS(2000),
@@ -108,6 +117,7 @@ void vTimerCallback(TimerHandle_t xTimer)
   (void) xTimer;
   xTaskNotifyGive(xTaskBME680);
   xTaskNotifyGive(xTaskLUX);
+  xTaskNotifyGive(xTaskINA219);
 }
 
 /* Get and compute BME680 data sensor
@@ -126,7 +136,6 @@ void vTaskBME680(void *pvParameters)
     {.value = 0, .id = 'H'}
   };
   struct bme680_s tmp = {.temperature = 0, .pressure = 0, .humidity = 0};
-  vI2C_Setup();
 
   if(xBme680_Setup() != 0)
   {
@@ -187,10 +196,60 @@ void vTaskSensorLux(void *pvParameters)
     xQueueReceive(xQueueAdcSensorLux, &raw_value, portMAX_DELAY);
     volt_value = xAdcRawToVolt(raw_value);
     lux_value = xVoltToLux(volt_value);
-    printf("[LUX] Lux value : %.lf\r\n", lux_value);
+    printf("[LUX] L: %d\r\n", (int)lux_value);
 
-    measure_luminosity.value = (int)lux_value;
-    xQueueSend(xQueueSensorsToSupervisor, &measure_luminosity, pdMS_TO_TICKS(1));
+    measure.value = (int)lux_value;
+    xQueueSend(xQueueSensorsToSupervisor, &measure, pdMS_TO_TICKS(1));
+  }
+}
+
+/* Get and compute INA219 data sensor
+ * Voltage and current for alimenting STM32 board
+ * Use I2C1
+ */
+void vTaskIna219(void *pvParameters)
+{
+  (void) pvParameters;
+
+  printf("Debug INA219\r\n");
+
+  int8_t rslt = 0;
+  struct ina219_s data = {
+    .voltage = 0,
+    .current = 0,
+  };
+
+  struct sensor_measure_s measure[] =
+  {
+    {.id = 'V', .value = 0},
+    {.id = 'C', .value = 0},
+  };
+
+  ina219_setup();
+
+  printf("[INA219] Setup finished.\r\n");
+
+  while(1)
+  {
+    /* Wait Sampling */
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+    rslt = ina219_get_data(&data);
+    if(rslt == 0)
+    {
+      measure[0].value = data.voltage;
+      measure[1].value = data.current;
+
+      printf("[INA219] V: %d, C: %d\r\n",
+        data.voltage, data.current);
+    }
+    else
+    {
+      printf("[INA219] Get data fail ...\r\n");
+    }
+
+    xQueueSend(xQueueSensorsToSupervisor, &measure[0], pdMS_TO_TICKS(1));
+    xQueueSend(xQueueSensorsToSupervisor, &measure[1], pdMS_TO_TICKS(1));
   }
 }
 
@@ -200,22 +259,45 @@ void vTaskSupervisor(void *pvParameters)
   UBaseType_t uxFreeItems = 0;
   struct sensor_measure_s tmp;
   uint32_t counter = 0;
-  struct time_s time = {.year = 0, .month = 0, .day = 0, .week_day = 0,
-    .hour = 0, .minute = 0, .second = 0};
-  struct sensors_data_s data = {.horodatage = time, .temperature = 0,
-    .pressure = 0, .humidity = 0, .luminosity = 0, .gas = 0};
+  struct time_s time =
+  {
+    .year = 0,
+    .month = 0,
+    .day = 0,
+    .week_day = 0,
+    .hour = 0,
+    .minute = 0,
+    .second = 0
+  };
+
+  struct sensors_data_s data =
+  {
+    .horodatage = time,
+    .voltage = 0,
+    .current = 0,
+    .temperature = 0,
+    .pressure = 0,
+    .humidity = 0,
+    .luminosity = 0,
+  };
 
   printf("Debug Supervisor\r\n");
 
   while(1)
   {
     /* Wait ALL data treatment before sending to Communicator task */
-    while(counter != 4)
+    while(counter != 6)
     {
       xQueueReceive(xQueueSensorsToSupervisor, &tmp, portMAX_DELAY);
       counter++;
       switch(tmp.id)
       {
+        case('V'):
+          data.voltage = tmp.value;
+          break;
+        case('C'):
+          data.current = tmp.value;
+          break;
         case('T'):
           data.temperature = tmp.value;
           break;
@@ -227,9 +309,6 @@ void vTaskSupervisor(void *pvParameters)
           break;
         case('L'):
           data.luminosity = tmp.value;
-          break;
-        case('G'):
-          data.gas = tmp.value;
           break;
         default:
           break;
@@ -351,6 +430,14 @@ void vTaskRtcUpdate(void *pvParameters)
       /* Decode buffer for extracting date and time calendar */
       rtc_calendar_set(time);
     }
+  }
+}
+
+void ina219_wait_conversion()
+{
+  while(ina219_check_conversion() != true)
+  {
+    taskYIELD();
   }
 }
 

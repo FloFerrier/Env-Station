@@ -138,19 +138,22 @@ void Serialize_Msg(struct sensors_data_s data, char *p_msg)
   Serialize_Time(data.horodatage, p_time, &size);
   strncat(p_msg, p_time, size);
   strncat(p_msg, ",", 1);
-  Serialize_Data("T", data.temperature, p_data, &size); // Temperature
+  Serialize_Data("V", data.voltage, p_data, &size);
   strncat(p_msg, p_data, size);
   strncat(p_msg, ",", 1);
-  Serialize_Data("P", data.pressure, p_data, &size); // Pressure
+  Serialize_Data("C", data.current, p_data, &size);
   strncat(p_msg, p_data, size);
   strncat(p_msg, ",", 1);
-  Serialize_Data("H", data.humidity, p_data, &size); // Humidity
+  Serialize_Data("T", data.temperature, p_data, &size);
   strncat(p_msg, p_data, size);
   strncat(p_msg, ",", 1);
-  Serialize_Data("L", data.luminosity, p_data, &size); // Luminosity
+  Serialize_Data("P", data.pressure, p_data, &size);
   strncat(p_msg, p_data, size);
   strncat(p_msg, ",", 1);
-  Serialize_Data("G", data.gas, p_data, &size); // Gas
+  Serialize_Data("H", data.humidity, p_data, &size);
+  strncat(p_msg, p_data, size);
+  strncat(p_msg, ",", 1);
+  Serialize_Data("L", data.luminosity, p_data, &size);
   strncat(p_msg, p_data, size);
   strncat(p_msg, "\n", 2);
 }

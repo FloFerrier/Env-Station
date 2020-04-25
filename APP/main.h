@@ -24,6 +24,7 @@
 #include "Drivers/GA1A1S202WP/ga1a1s202wp.h"
 #include "Drivers/BME680/wrapper.h"
 #include "Drivers/HC05/hc05.h"
+#include "Drivers/INA219/ina219.h"
 
 #include "Tools/msg-protocol/msg-protocol.h"
 
@@ -35,6 +36,7 @@
 #define TASK_COMMUNICATOR_STACK configMINIMAL_STACK_SIZE
 #define TASK_SUPERVISOR_STACK configMINIMAL_STACK_SIZE
 #define TASK_RTC_UPDATER_STACK configMINIMAL_STACK_SIZE
+#define TASK_INA219_STACK configMINIMAL_STACK_SIZE
 
 /* Task Priorities */
 #define TASK_BME680_PRIO  (configMAX_PRIORITIES-5)
@@ -42,6 +44,7 @@
 #define TASK_COMMUNICATOR_PRIO (configMAX_PRIORITIES-2)
 #define TASK_SUPERVISOR_PRIO (configMAX_PRIORITIES-4)
 #define TASK_RTC_UPDATER_PRIO (configMAX_PRIORITIES-3)
+#define TASK_INA219_PRIO (configMAX_PRIORITIES-1)
 
 #define QUEUE_ITEM_MAX_TO_SEND 20 // n latest data ready to be send
 
@@ -56,6 +59,7 @@ uint32_t SystemCoreClock;
 
 TaskHandle_t xTaskBME680 = NULL;
 TaskHandle_t xTaskLUX = NULL;
+TaskHandle_t xTaskINA219 = NULL;
 
 TimerHandle_t xTimerSampling = NULL;
 
@@ -72,6 +76,7 @@ void vTaskSensorLux(void *pvParameters);
 void vTaskSupervisor(void *pvParameters);
 void vTaskCommunicator(void *pvParameters);
 void vTaskRtcUpdate(void *pvParameters);
+void vTaskIna219(void *pvParameters);
 
 void vTimerCallback(TimerHandle_t xTimer);
 
