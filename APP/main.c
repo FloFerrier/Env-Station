@@ -129,7 +129,7 @@ void vTaskBME680(void *pvParameters)
   (void) pvParameters;
   printf("Debug BME680\r\n");
 
-  struct sensor_measure_s data[3] =
+  struct sensor_measure_s data[] =
   {
     {.value = 0, .id = 'T'},
     {.value = 0, .id = 'P'},
@@ -179,7 +179,7 @@ void vTaskSensorLux(void *pvParameters)
   (void) pvParameters;
   printf("Debug GA1A1S202WP\r\n");
 
-  struct sensor_measure_s measure_luminosity = {.value = 0, .id = 'L'};
+  struct sensor_measure_s measure = {.value = 0, .id = 'L'};
   vADC_Setup();
 
   uint32_t raw_value = 0;
@@ -337,10 +337,28 @@ void vTaskCommunicator(void *pvParameters)
 
   static char buffer[MAX_BUFFER_UART_RX];
   static char p_msg[MAX_BUFFER_UART_RX];
-  struct time_s time = {.year = 0, .month = 0, .day = 0, .week_day = 0,
-    .hour = 0, .minute = 0, .second = 0};
-  struct sensors_data_s sensors_data = {.horodatage = time, .temperature = 0,
-    .pressure = 0, .humidity = 0, .luminosity = 0, .gas = 0};
+  struct time_s time =
+  {
+    .year = 0,
+    .month = 0,
+    .day = 0,
+    .week_day = 0,
+    .hour = 0,
+    .minute = 0,
+    .second = 0
+  };
+
+  struct sensors_data_s sensors_data =
+  {
+    .horodatage = time,
+    .voltage = 0,
+    .current = 0,
+    .temperature = 0,
+    .pressure = 0,
+    .humidity = 0,
+    .luminosity = 0,
+  };
+
   struct led_s led_green = {.port = GPIOC, .pin = GPIO7};
   struct led_s led_red = {.port = GPIOA, .pin = GPIO9};
 
