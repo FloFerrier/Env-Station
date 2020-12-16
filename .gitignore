@@ -1,3 +1,5 @@
 *.ld
 *.map
 /build
+HAL/libopencm3
+OS/FreeRTOS
