@@ -42,7 +42,7 @@ CROSS_COMPILE=arm-none-eabi-
 
 # compilation flags
 CC_OPT=-Os
-CFLAGS=-W -Wall -Wextra
+CFLAGS=-W -Wall -Wextra -Werror -Wstrict-prototypes -Wmissing-prototypes
 CFLAGS_DEBUG=-g -gdwarf-4
 CC_DEFINES=
 
