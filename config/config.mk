@@ -42,13 +42,13 @@ CROSS_COMPILE=arm-none-eabi-
 
 # compilation flags
 CC_OPT=-Os
-CFLAGS=-W -Wall
+CFLAGS=-W -Wall -Wextra
 CFLAGS_DEBUG=-g -gdwarf-4
 CC_DEFINES=
 
 # link flags
 LD_OPT=-flto
-LDFLAGS=-Wl,--gc-sections -nostartfiles -lnosys -Xlinker -Map=output.map -lm
+LDFLAGS=-Wl,--gc-sections -nostartfiles -lc -lnosys -Xlinker -Map=output.map
 
 # arch specific flags
-ARCH_FLAGS=-mcpu=$(MCU_CORE) -mthumb -msoft-float
+ARCH_FLAGS=-mcpu=$(MCU_CORE) -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -specs=nano.specs
