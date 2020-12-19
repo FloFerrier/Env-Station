@@ -21,9 +21,11 @@ FLASH_TOOL=openocd
 FLASH_TOOL_FLAGS=-f $(OPENOCD_CFG_FILE) -c "setup $(INTERFACE) $(TRANSPORT) $(TARGET)"
 
 # Libraries
-LIB_PATH=$(HAL_LIB_PATH) $(OS_LIB_PATH)
+USER_APP_PATH=APPS/
+
+LIB_PATH=$(HAL_LIB_PATH) $(OS_LIB_PATH) $(USER_APP_PATH)
 LIB_NAMES=$(HAL_LIB_NAME) $(OS_LIB_NAME)
-INCLUDES=$(HAL_INCLUDE_PATH) $(OS_INCLUDE_PATH)
+INCLUDES=$(HAL_INCLUDE_PATH) $(OS_INCLUDE_PATH) $(USER_APP_PATH)
 LIB_DEFINES=$(HAL_DEFINES) $(OS_DEFINES)
 
 # compile flags
@@ -38,8 +40,8 @@ LDFLAGS+=$(patsubst %,-L%, $(LIB_PATH))
 LDFLAGS+=$(patsubst %,-l%, $(LIB_NAMES))
 
 
-SRC= $(wildcard APP/*.c) $(wildcard BSP/*.c) $(wildcard Drivers/*/*.c) $(wildcard Tools/*/*.c)
-HDR= $(wildcard APP/*.h) $(wildcard BSP/*.h) $(wildcard Drivers/*/*.h) $(wildcard Tools/*/*.h)
+SRC= $(wildcard $(USER_APP_PATH)/*.c) $(wildcard $(USER_APP_PATH)/*/*.c) $(wildcard $(USER_APP_PATH)/*/*/*.c) $(wildcard $(USER_APP_PATH)/*/*/*/*.c)
+HDR= $(wildcard $(USER_APP_PATH)/*.h) $(wildcard $(USER_APP_PATH)/*/*.h) $(wildcard $(USER_APP_PATH)/*/*/*.h) $(wildcard $(USER_APP_PATH)/*/*/*/*.h)
 OBJ= $(SRC:.c=.o)
 
 DEBUG_OBJ=$(addprefix $(DEBUG_DIR)/, $(OBJ))
