@@ -11,6 +11,7 @@
 
 #include "Debug/console.h"
 #include "Sensors/Bme680/wrapper.h"
+#include "Sensors/Lps33w/wrapper.h"
 
 /* Necessary for FreeRTOS */
 uint32_t SystemCoreClock;
@@ -19,6 +20,7 @@ extern QueueHandle_t xQueueConsoleDebug;
 
 extern void vTaskConsoleDebug(void *pvParameters);
 extern void vTaskSensorBme680(void *pvParameters);
+extern void vTaskSensorLps33w(void *pvParameters);
 
 extern void vApplicationStackOverflowHook(TaskHandle_t xTask, signed char *pcTaskName);
 
@@ -38,6 +40,7 @@ int main(void)
 
   xTaskCreate(vTaskConsoleDebug, "CONSOLE DEBUG", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 1, NULL);
   xTaskCreate(vTaskSensorBme680, "SENSOR BME680", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, NULL);
+  xTaskCreate(vTaskSensorLps33w, "SENSOR LPS33W", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, NULL);
 
   xQueueConsoleDebug = xQueueCreate(10, sizeof(char) * BUFFER_CONSOLE_LEN_MAX);
 

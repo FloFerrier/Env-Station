@@ -1,0 +1,114 @@
+#include "wrapper.h"
+
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+#include <libopencm3/stm32/i2c.h>
+
+#include "Debug/console.h"
+#include "Drivers/lps33w_reg.h"
+
+static int32_t platform_write(void *handle, uint8_t reg, uint8_t *bufp, uint16_t len);
+static int32_t platform_read(void *handle, uint8_t reg, uint8_t *bufp, uint16_t len);
+
+static int32_t platform_write(void *handle, uint8_t reg, uint8_t *bufp, uint16_t len)
+{
+  (void) handle;
+  if(bufp != NULL)
+  {
+    uint8_t buffer[len + 1];
+
+    memcpy(buffer, &reg, 1);
+    memcpy(&(buffer[1]), bufp, len);
+
+    i2c_transfer7(I2C1, (uint8_t)0x5D, buffer, (size_t)(len + 1), NULL, 0);
+    return 0;
+  }
+
+  return -1;
+}
+
+static int32_t platform_read(void *handle, uint8_t reg, uint8_t *bufp, uint16_t len)
+{
+  (void) handle;
+  if(bufp != NULL)
+  {
+    i2c_transfer7(I2C1, (uint8_t)0x5D, &reg, 1, bufp, (size_t)len);
+    return 0;
+  }
+
+  return -1;
+}
+
+void vTaskSensorLps33w(void *pvParameters)
+{
+  (void) pvParameters;
+
+  console_debug("[LPS33W] Start Task\r\n");
+
+  static stmdev_ctx_t sensor;
+  sensor.write_reg = platform_write;
+  sensor.read_reg = platform_read;
+
+  static uint8_t tmp = 0x00;
+
+  /* Check device ID */
+  lps33w_device_id_get(&sensor, &tmp);
+  if (tmp == LPS33W_ID)
+  {
+    console_debug("[LPS33W] Check ID: ok\r\n");
+  }
+  else
+  {
+    console_debug("[LPS33W] Check ID: error\r\n");
+  }
+
+  /* Restore default configuration */
+  lps33w_reset_set(&sensor, PROPERTY_ENABLE);
+  vTaskDelay(pdMS_TO_TICKS(10));
+  lps33w_reset_get(&sensor, &tmp);
+  if (tmp != 1)
+  {
+    console_debug("[LPS33W] Software reset: ok\r\n");
+  }
+  else
+  {
+    console_debug("[LPS33W] Software reset: error\r\n");
+  }
+
+  /* Enable Block Data Update */
+  lps33w_block_data_update_set(&sensor, PROPERTY_ENABLE);
+  /* Set Output Data Rate to 0 */
+  lps33w_data_rate_set(&sensor, LPS33W_POWER_DOWN);
+
+  static uint8_t reg = 0x00;
+  static uint32_t data_raw_pressure = 0x00000000;
+  static int16_t data_raw_temperature = 0x0000;
+  static uint pressure_hPa = 0;
+  static int temperature_degC = 0;
+
+  while(1)
+  {
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    /* Trigger one shot data acquisition */
+    lps33w_one_shoot_trigger_set(&sensor, PROPERTY_ENABLE);
+    /* Wait data ready */
+    lps33w_press_data_ready_get(&sensor, &reg);
+
+    if(reg)
+    {
+      lps33w_pressure_raw_get(&sensor, &data_raw_pressure);
+      pressure_hPa = data_raw_pressure / 4096;
+      console_debug("[LPS33W] %d hPa\r\n", pressure_hPa);
+    }
+
+    lps33w_temp_data_ready_get(&sensor, &reg);
+    if(reg)
+    {
+      lps33w_temperature_raw_get(&sensor, &data_raw_temperature);
+      temperature_degC = data_raw_temperature / 100;
+      console_debug("[LPS33W] %d degC\r\n", temperature_degC);
+    }
+  }
+}
