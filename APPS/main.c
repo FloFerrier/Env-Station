@@ -2,6 +2,8 @@
 #include <libopencm3/cm3/nvic.h>
 
 #include <libopencm3/stm32/rcc.h>
+#include <libopencm3/stm32/pwr.h>
+#include <libopencm3/stm32/rtc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/i2c.h>
@@ -14,6 +16,7 @@
 #include "Sensors/Bme680/wrapper.h"
 #include "Sensors/Lps33w/wrapper.h"
 #include "Sensors/Veml7700/wrapper.h"
+#include "Sensors/Rtc/wrapper.h"
 #include "Comm/rn4871.h"
 
 /* Necessary for FreeRTOS */
@@ -36,6 +39,7 @@ extern void vApplicationStackOverflowHook(TaskHandle_t xTask, signed char *pcTas
 void uart2_setup(void);
 void uart3_setup(void);
 void i2c1_setup(void);
+void rtc_setup(void);
 
 int main(void)
 {
@@ -48,6 +52,7 @@ int main(void)
   uart2_setup();
   uart3_setup();
   i2c1_setup();
+  rtc_setup();
 
   xTaskCreate(vTaskConsoleDebug, "CONSOLE DEBUG", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 1, NULL);
   xTaskCreate(vTaskSensorBme680, "SENSOR BME680", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, NULL);
@@ -120,6 +125,24 @@ void i2c1_setup(void)
   i2c_reset(I2C1);
   i2c_set_speed(I2C1, i2c_speed_sm_100k, rcc_apb1_frequency / 1e6);
   i2c_peripheral_enable(I2C1);
+}
+
+void rtc_setup(void)
+{
+  /* Enable Clock for RTC */
+  rcc_periph_clock_enable(RCC_PWR);
+  rcc_periph_clock_enable(RCC_RTC);
+
+  pwr_disable_backup_domain_write_protect();
+  /* Enable LSE for calendar using */
+  RCC_BDCR |= RCC_BDCR_LSEON;
+  RCC_BDCR |= RCC_BDCR_RTCEN;
+  RCC_BDCR |= (1<<8); //RTCSEL at 0b01
+  RCC_BDCR &= ~(1<<9); //RTCSEL at 0b01
+
+  while(!(RCC_BDCR & RCC_BDCR_LSERDY));
+
+  pwr_enable_backup_domain_write_protect();
 }
 
 void vApplicationStackOverflowHook(TaskHandle_t xTask, signed char *pcTaskName)
