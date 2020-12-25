@@ -18,7 +18,7 @@ QueueHandle_t xQueueCommUartTx;
 
 EventGroupHandle_t xEventsComm;
 
-void rn4871_send_data(const char *format, ...);
+int8_t rn4871_send_data(const char *buffer, const int buffer_size);
 void vTaskCommRn4871(void *pvParameters);
 
 #endif /* APPS_COMM_RN4871_H */

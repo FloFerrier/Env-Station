@@ -5,12 +5,22 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <time.h>
 
 #include <libopencm3/cm3/nvic.h>
 
 #include <libopencm3/stm32/usart.h>
 
 #include "Debug/console.h"
+#include "Sensors/Rtc/wrapper.h"
+
+#define RN4871_DELIMITER_STATUS ('%')
+
+struct ble_msg_s {
+  uint8_t type;
+  uint8_t payload_len;
+  uint8_t payload[51];
+};
 
 enum command_e {
   CMD_NONE,
@@ -41,7 +51,8 @@ const char TABLE_COMMAND[][10] = {
 };
 
 static enum command_e _current_cmd = CMD_NONE;
-static bool _data_mode = false;
+static bool _stream_open = false;
+static bool _rtc_update = false;
 
 static char buffer_uart_rx[BUFFER_UART_LEN_MAX+1] = "";
 static char buffer_uart_tx[BUFFER_UART_LEN_MAX+1] = "";
@@ -50,6 +61,8 @@ static char buffer_uplink[BUFFER_UART_LEN_MAX+1] = "";
 extern void usart3_isr(void);
 static void uart3_send(const char *buffer);
 static void rn4871_send_cmd(enum command_e cmd);
+static int8_t rn4871_decode_msg(const char *buffer, struct ble_msg_s *msg);
+static int8_t rn4871_process_msg(struct ble_msg_s *msg);
 static void rn4871_process_resp(const char *buffer);
 
 void usart3_isr(void)
@@ -57,20 +70,20 @@ void usart3_isr(void)
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   static volatile uint16_t c = 0;
   static uint16_t i = 0;
-  static uint8_t cnt = 0;
+  static uint8_t cnt_delim_status = 0;
 
   c = usart_recv(USART3);
   buffer_uart_rx[i++] = (char)c;
-  if(c == '%')
+  if(c == RN4871_DELIMITER_STATUS)
   {
-    ++cnt;
+    ++cnt_delim_status;
   }
 
-  if((c == '>') || (cnt == 2))
+  if((c == '>') || (cnt_delim_status == 2))
   {
     buffer_uart_rx[i] = 0;
     i = 0;
-    cnt = 0;
+    cnt_delim_status = 0;
     xQueueSendFromISR(xQueueCommUartRx, buffer_uart_rx, &xHigherPriorityTaskWoken);
     xEventGroupSetBitsFromISR(xEventsComm, FLAG_COMM_RX, &xHigherPriorityTaskWoken);
   }
@@ -102,13 +115,17 @@ static void rn4871_send_cmd(enum command_e cmd)
     case CMD_GET_DEVICE_NAME:
     case CMD_GET_VERSION:
     {
-      rn4871_send_data("%s\r\n", TABLE_COMMAND[cmd]);
+      snprintf(buffer_uplink, BUFFER_UART_LEN_MAX, "%s\r\n", TABLE_COMMAND[cmd]);
+      xQueueSend(xQueueCommUartTx, buffer_uplink, 100);
+      xEventGroupSetBits(xEventsComm, FLAG_COMM_TX);
       break;
     }
     case CMD_SET_SERVICES:
     {
       /* Enable Transparent UART */
-      rn4871_send_data("%s,C0\r\n", TABLE_COMMAND[cmd]);
+      snprintf(buffer_uplink, BUFFER_UART_LEN_MAX, "%s,C0\r\n", TABLE_COMMAND[cmd]);
+      xQueueSend(xQueueCommUartTx, buffer_uplink, 100);
+      xEventGroupSetBits(xEventsComm, FLAG_COMM_TX);
       break;
     }
     default:
@@ -117,8 +134,74 @@ static void rn4871_send_cmd(enum command_e cmd)
   _current_cmd = cmd;
 }
 
+static int8_t rn4871_decode_msg(const char *buffer, struct ble_msg_s *msg)
+{
+  static char tmp[3] = "";
+  static uint8_t val = 0;
+  char *ptr_end;
+  char *p = strchr(buffer, ',');
+  p++;
+  tmp[0] = *p;
+  p++;
+  tmp[1] = *p;
+  val = (uint8_t)strtol(tmp, &ptr_end, 16);
+  if(ptr_end == tmp)
+  {
+    return -1;
+  }
+  msg->type = val;
+
+  p++;
+  tmp[0] = *p;
+  p++;
+  tmp[1] = *p;
+  val = (uint8_t)strtol(tmp, &ptr_end, 16);
+  if(ptr_end == tmp)
+  {
+    return -1;
+  }
+  msg->payload_len = val;
+
+  for(int i = 0; i < msg->payload_len; i++)
+  {
+    p++;
+    tmp[0] = *p;
+    p++;
+    tmp[1] = *p;
+    val = (uint8_t)strtol(tmp, &ptr_end, 16);
+    if(ptr_end == tmp)
+    {
+      return -1;
+    }
+    msg->payload[i] = val;
+  }
+
+  return 0;
+}
+
+static int8_t rn4871_process_msg(struct ble_msg_s *msg)
+{
+  switch(msg->type)
+  {
+    case 0x01:
+    {
+      /* Update RTC */
+      time_t epoch = (msg->payload[0] << 24) | (msg->payload[1] << 16) | (msg->payload[2] << 8) | (msg->payload[3] << 0);
+      rtc_epoch_set(epoch);
+      _rtc_update = true;
+      console_debug("[RTC] Set Epoch: %d\r\n", (uint32_t)epoch);
+      break;
+    }
+    default :
+      break;
+  }
+
+  return 0;
+}
+
 static void rn4871_process_resp(const char *buffer)
 {
+  struct ble_msg_s msg;
   enum command_e cmd = _current_cmd;
   if((strstr(buffer, "CMD>") != NULL) || (strstr(buffer, "REBOOT") != NULL))
   {
@@ -141,23 +224,51 @@ static void rn4871_process_resp(const char *buffer)
         break;
       case CMD_REBOOT:
         _current_cmd = CMD_NONE;
-        _data_mode = true;
         break;
       default:
         _current_cmd = CMD_NONE;
         break;
     }
   }
+  else if(strstr(buffer, "STREAM_OPEN") != NULL)
+  {
+    _stream_open = true;
+    char req_time[] = "DATA,010101";
+    rn4871_send_data(req_time, strlen(req_time));
+  }
+  else if(strstr(buffer, "DISCONNECT") != NULL)
+  {
+    _stream_open = false;
+  }
+  else if(strstr(buffer, "DATA") != NULL)
+  {
+    int8_t ret = rn4871_decode_msg(buffer, &msg);
+    if(ret != 0)
+    {
+      console_debug("[RN4871] Error to decode msg...\r\n");
+    }
+    else
+    {
+      /*console_debug("[RN4871] Msg type: 0x%x Payload_len: 0x%x Payload: 0x%x%x%x%x\r\n",
+        msg->type, msg->payload_len, msg->payload[0], msg->payload[1], msg->payload[2], msg->payload[3]);*/
+      rn4871_process_msg(&msg);
+    }
+  }
 }
 
-void rn4871_send_data(const char *format, ...)
+int8_t rn4871_send_data(const char *buffer, const int buffer_size)
 {
-  va_list args;
-  va_start (args, format);
-  vsnprintf(buffer_uplink, BUFFER_UART_LEN_MAX, format, args);
-  xQueueSend(xQueueCommUartTx, buffer_uplink, 100);
-  xEventGroupSetBits(xEventsComm, FLAG_COMM_TX);
-  va_end(args);
+  if(_stream_open != true)
+  {
+    return -1;
+  }
+  else
+  {
+    strncpy(buffer_uplink, buffer, buffer_size);
+    xQueueSend(xQueueCommUartTx, buffer_uplink, 100);
+    xEventGroupSetBits(xEventsComm, FLAG_COMM_TX);
+    return 0;
+  }
 }
 
 void vTaskCommRn4871(void *pvParameters)
