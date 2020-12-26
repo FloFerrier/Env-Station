@@ -27,7 +27,7 @@ extern QueueHandle_t xQueueConsoleDebug;
 extern QueueHandle_t xQueueCommUartTx;
 extern QueueHandle_t xQueueCommUartRx;
 
-extern EventGroupHandle_t xEventsComm;
+extern EventGroupHandle_t xEventsCommRn4871;
 
 extern void vTaskConsoleDebug(void *pvParameters);
 extern void vTaskSensorBme680(void *pvParameters);

@@ -23,6 +23,11 @@ struct ble_msg_s {
   uint8_t payload[51];
 };
 
+enum FLAGS_EVENTS_RN4871 {
+  FLAG_RN4871_TX = 0b000001,
+  FLAG_RN4871_RX = 0b000010,
+};
+
 enum command_e {
   CMD_NONE,
   CMD_MODE_ENTER, /* $$$ */
@@ -86,7 +91,7 @@ void usart3_isr(void)
     i = 0;
     cnt_delim_status = 0;
     xQueueSendFromISR(xQueueCommUartRx, buffer_uart_rx, &xHigherPriorityTaskWoken);
-    xEventGroupSetBitsFromISR(xEventsComm, FLAG_COMM_RX, &xHigherPriorityTaskWoken);
+    xEventGroupSetBitsFromISR(xEventsCommRn4871, FLAG_RN4871_RX, &xHigherPriorityTaskWoken);
   }
   else if(i >= (BUFFER_UART_LEN_MAX - 1))
   {
@@ -118,7 +123,7 @@ static void rn4871_send_cmd(enum command_e cmd)
     {
       snprintf(buffer_uplink, BUFFER_UART_LEN_MAX, "%s\r\n", TABLE_COMMAND[cmd]);
       xQueueSend(xQueueCommUartTx, buffer_uplink, 100);
-      xEventGroupSetBits(xEventsComm, FLAG_COMM_TX);
+      xEventGroupSetBits(xEventsCommRn4871, FLAG_RN4871_TX);
       break;
     }
     case CMD_SET_SERVICES:
@@ -126,7 +131,7 @@ static void rn4871_send_cmd(enum command_e cmd)
       /* Enable Transparent UART */
       snprintf(buffer_uplink, BUFFER_UART_LEN_MAX, "%s,C0\r\n", TABLE_COMMAND[cmd]);
       xQueueSend(xQueueCommUartTx, buffer_uplink, 100);
-      xEventGroupSetBits(xEventsComm, FLAG_COMM_TX);
+      xEventGroupSetBits(xEventsCommRn4871, FLAG_RN4871_TX);
       break;
     }
     default:
@@ -275,7 +280,7 @@ int8_t rn4871_send_data(const char *buffer, const int buffer_size)
   {
     strncpy(buffer_uplink, buffer, buffer_size);
     xQueueSend(xQueueCommUartTx, buffer_uplink, 100);
-    xEventGroupSetBits(xEventsComm, FLAG_COMM_TX);
+    xEventGroupSetBits(xEventsCommRn4871, FLAG_RN4871_TX);
     return 0;
   }
 }
@@ -302,14 +307,14 @@ void vTaskCommRn4871(void *pvParameters)
   {
     rn4871_send_cmd(CMD_DUMP_INFOS);
   }
-  xEventGroupClearBits(xEventsComm, FLAG_COMM_RX);
+  xEventGroupClearBits(xEventsCommRn4871, FLAG_RN4871_RX);
 
   while(1)
   {
-    EventBits_t uxBits = xEventGroupWaitBits(xEventsComm, FLAG_COMM_RX | FLAG_COMM_TX, pdFALSE, pdFALSE, portMAX_DELAY);
-    if(uxBits | FLAG_COMM_RX)
+    EventBits_t uxBits = xEventGroupWaitBits(xEventsCommRn4871, FLAG_RN4871_RX | FLAG_RN4871_TX, pdFALSE, pdFALSE, portMAX_DELAY);
+    if(uxBits | FLAG_RN4871_RX)
     {
-      xEventGroupClearBits(xEventsComm, FLAG_COMM_RX);
+      xEventGroupClearBits(xEventsCommRn4871, FLAG_RN4871_RX);
       if(xQueueReceive(xQueueCommUartRx, buffer, 100) == pdPASS)
       {
         int data_size = strlen(buffer);
@@ -317,9 +322,9 @@ void vTaskCommRn4871(void *pvParameters)
         rn4871_process_resp(buffer);
       }
     }
-    if(uxBits | FLAG_COMM_TX)
+    if(uxBits | FLAG_RN4871_TX)
     {
-      xEventGroupClearBits(xEventsComm, FLAG_COMM_TX);
+      xEventGroupClearBits(xEventsCommRn4871, FLAG_RN4871_TX);
       if(xQueueReceive(xQueueCommUartTx, buffer_uart_tx, 100) == pdPASS)
       {
         int buffer_size = strlen(buffer_uart_tx);
