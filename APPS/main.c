@@ -17,7 +17,7 @@
 #include "Sensors/Lps33w/wrapper.h"
 #include "Sensors/Veml7700/wrapper.h"
 #include "Sensors/Rtc/wrapper.h"
-#include "Comm/rn4871.h"
+#include "Comm/Rn4871/rn4871.h"
 
 /* Necessary for FreeRTOS */
 uint32_t SystemCoreClock;
