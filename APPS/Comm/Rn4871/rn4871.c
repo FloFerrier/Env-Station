@@ -13,6 +13,7 @@
 
 #include "Debug/console.h"
 #include "Sensors/Rtc/wrapper.h"
+#include "Comm/Ihm/leds.h"
 
 #define RN4871_DELIMITER_STATUS ('%')
 
@@ -188,6 +189,7 @@ static int8_t rn4871_process_msg(struct ble_msg_s *msg)
       /* Update RTC */
       time_t epoch = (msg->payload[0] << 24) | (msg->payload[1] << 16) | (msg->payload[2] << 8) | (msg->payload[3] << 0);
       rtc_epoch_set(epoch);
+      ihm_rtc_updated(true);
       _rtc_update = true;
       console_debug("[RTC] Set Epoch: %d\r\n", (uint32_t)epoch);
       break;
@@ -233,12 +235,19 @@ static void rn4871_process_resp(const char *buffer)
   else if(strstr(buffer, "STREAM_OPEN") != NULL)
   {
     _stream_open = true;
+    ihm_ble_stream(true);
     char req_time[] = "DATA,010101";
     rn4871_send_data(req_time, strlen(req_time));
   }
   else if(strstr(buffer, "DISCONNECT") != NULL)
   {
+    ihm_ble_connected(false);
+    ihm_ble_stream(false);
     _stream_open = false;
+  }
+  else if(strstr(buffer, "CONNECT") != NULL)
+  {
+    ihm_ble_connected(true);
   }
   else if(strstr(buffer, "DATA") != NULL)
   {

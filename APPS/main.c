@@ -18,6 +18,7 @@
 #include "Sensors/Veml7700/wrapper.h"
 #include "Sensors/Rtc/wrapper.h"
 #include "Comm/Rn4871/rn4871.h"
+#include "Comm/Ihm/leds.h"
 
 /* Necessary for FreeRTOS */
 uint32_t SystemCoreClock;
@@ -40,6 +41,7 @@ void uart2_setup(void);
 void uart3_setup(void);
 void i2c1_setup(void);
 void rtc_setup(void);
+void leds_setup(void);
 
 int main(void)
 {
@@ -53,18 +55,20 @@ int main(void)
   uart3_setup();
   i2c1_setup();
   rtc_setup();
+  leds_setup();
 
-  xTaskCreate(vTaskConsoleDebug, "CONSOLE DEBUG", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 1, NULL);
-  xTaskCreate(vTaskSensorBme680, "SENSOR BME680", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, NULL);
-  xTaskCreate(vTaskSensorLps33w, "SENSOR LPS33W", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, NULL);
-  xTaskCreate(vTaskSensorVeml7700, "SENSOR VEML7700", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, NULL);
+  xTaskCreate(vTaskConsoleDebug, "CONSOLE DEBUG", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 1, NULL);
+  //xTaskCreate(vTaskSensorBme680, "SENSOR BME680", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, NULL);
+  //xTaskCreate(vTaskSensorLps33w, "SENSOR LPS33W", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, NULL);
+  //xTaskCreate(vTaskSensorVeml7700, "SENSOR VEML7700", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 2, NULL);
   xTaskCreate(vTaskCommRn4871, "COMM RN4871", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 3, NULL);
+  xTaskCreate(vTaskCommIhm, "COMM IHM", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, NULL);
 
   xQueueConsoleDebug = xQueueCreate(10, sizeof(char) * BUFFER_CONSOLE_LEN_MAX);
   xQueueCommUartRx = xQueueCreate(10, sizeof(char) * BUFFER_UART_LEN_MAX);
   xQueueCommUartTx = xQueueCreate(10, sizeof(char) * BUFFER_UART_LEN_MAX);
 
-  xEventsComm = xEventGroupCreate();
+  xEventsCommRn4871 = xEventGroupCreate();
 
   vTaskStartScheduler();
   taskENABLE_INTERRUPTS();
@@ -145,9 +149,17 @@ void rtc_setup(void)
   pwr_enable_backup_domain_write_protect();
 }
 
+void leds_setup(void)
+{
+  rcc_periph_clock_enable(RCC_GPIOC);
+  gpio_mode_setup(GPIOC, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO0 | GPIO1);
+  gpio_set_output_options(GPIOC, GPIO_OTYPE_PP, GPIO_OSPEED_2MHZ, GPIO0 | GPIO1);
+}
+
 void vApplicationStackOverflowHook(TaskHandle_t xTask, signed char *pcTaskName)
 {
   (void) xTask;
   (void) pcTaskName;
   uart2_send("[KERNEL] Stack overflow ...\r\n");
+  ihm_system_problem(true);
 }
