@@ -125,8 +125,6 @@ void vTaskSensorBme680(void *pvParameters)
 
   struct bme680_field_data data;
 
-  static int cnt = 0;
-
   while(1)
   {
     vTaskDelay(pdMS_TO_TICKS(2500)); // in ms
