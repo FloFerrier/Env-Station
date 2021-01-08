@@ -3,7 +3,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <stdbool.h>
 #include <time.h>
 
@@ -16,11 +15,12 @@
 #include "Comm/Ihm/leds.h"
 
 #define RN4871_DELIMITER_STATUS ('%')
+#define MSG_PAYLOAD_LEN_MAX (255)
 
 struct ble_msg_s {
   uint8_t type;
   uint8_t payload_len;
-  uint8_t payload[51];
+  uint8_t payload[MSG_PAYLOAD_LEN_MAX+1];
 };
 
 enum FLAGS_EVENTS_RN4871 {
@@ -67,6 +67,8 @@ static char buffer_uplink[BUFFER_UART_LEN_MAX+1] = "";
 extern void usart3_isr(void);
 static void uart3_send(const char *buffer);
 static void rn4871_send_cmd(enum command_e cmd);
+static int8_t rn4871_create_msg(const struct ble_msg_params_s *msg_params, struct ble_msg_s *msg);
+static int8_t rn4871_encode_msg(const struct ble_msg_s *msg, char *buffer);
 static int8_t rn4871_decode_msg(const char *buffer, struct ble_msg_s *msg);
 static int8_t rn4871_process_msg(struct ble_msg_s *msg);
 static void rn4871_process_resp(const char *buffer);
@@ -140,6 +142,76 @@ static void rn4871_send_cmd(enum command_e cmd)
   _current_cmd = cmd;
 }
 
+static int8_t rn4871_create_msg(const struct ble_msg_params_s *msg_params, struct ble_msg_s *msg)
+{
+  if((msg_params != NULL) && (msg != NULL))
+  {
+    switch(msg_params->type)
+    {
+      case MSG_TYPE_INFOS:
+        /* To define */
+        msg->payload_len = 0;
+        break;
+      case MSG_TYPE_TIME:
+        /* Msg for requesting a time update */
+        msg->payload[0] = 0x01;
+        msg->payload_len = 1;
+        break;
+      case MSG_TYPE_BME680:
+        msg->payload[0] = (uint8_t)(msg_params->timestamp >> 24);
+        msg->payload[1] = (uint8_t)(msg_params->timestamp >> 16);
+        msg->payload[2] = (uint8_t)(msg_params->timestamp >> 8);
+        msg->payload[3] = (uint8_t)(msg_params->timestamp >> 0);
+        msg->payload[4] = (uint8_t)(msg_params->temperature);
+        msg->payload[5] = (uint8_t)(msg_params->pressure >> 8);
+        msg->payload[6] = (uint8_t)(msg_params->pressure >> 0);
+        msg->payload[7] = (uint8_t)(msg_params->humidity);
+        msg->payload_len = 8;
+        break;
+      case MSG_TYPE_LPS33W:
+        msg->payload[0] = (uint8_t)(msg_params->timestamp >> 24);
+        msg->payload[1] = (uint8_t)(msg_params->timestamp >> 16);
+        msg->payload[2] = (uint8_t)(msg_params->timestamp >> 8);
+        msg->payload[3] = (uint8_t)(msg_params->timestamp >> 0);
+        msg->payload[4] = (uint8_t)(msg_params->temperature);
+        msg->payload[5] = (uint8_t)(msg_params->pressure >> 8);
+        msg->payload[6] = (uint8_t)(msg_params->pressure >> 0);
+        msg->payload_len = 7;
+        break;
+      case MSG_TYPE_SGP30:
+        /* To do */
+        msg->payload_len = 0;
+        break;
+      case MSG_TYPE_VEML7700:
+        /* To do */
+        msg->payload_len = 0;
+        break;
+      default:
+        return -1;
+        break;
+    }
+    msg->type = msg_params->type;
+    return 0;
+  }
+  return -1;
+}
+
+static int8_t rn4871_encode_msg(const struct ble_msg_s *msg, char *buffer)
+{
+  if((msg != NULL) && (buffer != NULL))
+  {
+    int idx = 0;
+    idx = snprintf(&(buffer[idx]), MSG_PAYLOAD_LEN_MAX, "DATA,%02X%02X", msg->type, msg->payload_len);
+    for(int i = 0; i < msg->payload_len; i++)
+    {
+      snprintf(&(buffer[idx]), MSG_PAYLOAD_LEN_MAX, "%02X", msg->payload[i]);
+      idx += i + 1;
+    }
+    return 0;
+  }
+  return -1;
+}
+
 static int8_t rn4871_decode_msg(const char *buffer, struct ble_msg_s *msg)
 {
   static char tmp[3] = "";
@@ -189,7 +261,7 @@ static int8_t rn4871_process_msg(struct ble_msg_s *msg)
 {
   switch(msg->type)
   {
-    case 0x01:
+    case MSG_TYPE_TIME:
     {
       /* Update RTC */
       time_t epoch = (msg->payload[0] << 24) | (msg->payload[1] << 16) | (msg->payload[2] << 8) | (msg->payload[3] << 0);
@@ -239,10 +311,11 @@ static void rn4871_process_resp(const char *buffer)
   }
   else if(strstr(buffer, "STREAM_OPEN") != NULL)
   {
+    struct ble_msg_params_s msg_params;
     _stream_open = true;
     ihm_ble_stream(true);
-    char req_time[] = "DATA,010101";
-    rn4871_send_data(req_time, strlen(req_time));
+    msg_params.type = MSG_TYPE_TIME;
+    rn4871_send_data(&msg_params);
   }
   else if(strstr(buffer, "DISCONNECT") != NULL)
   {
@@ -270,7 +343,7 @@ static void rn4871_process_resp(const char *buffer)
   }
 }
 
-int8_t rn4871_send_data(const char *buffer, const int buffer_size)
+int8_t rn4871_send_data(const struct ble_msg_params_s *msg_params)
 {
   if(_stream_open != true)
   {
@@ -278,7 +351,19 @@ int8_t rn4871_send_data(const char *buffer, const int buffer_size)
   }
   else
   {
-    strncpy(buffer_uplink, buffer, buffer_size);
+    struct ble_msg_s msg;
+    if(rn4871_create_msg(msg_params, &msg) != 0)
+    {
+      console_debug("[RN4871] Error to create msg ...\r\n");
+      return -1;
+    }
+
+    if(rn4871_encode_msg(&msg, buffer_uplink) != 0)
+    {
+      console_debug("[RN4871] Error to encode msg ...\r\n");
+      return -1;
+    }
+
     xQueueSend(xQueueCommUartTx, buffer_uplink, 100);
     xEventGroupSetBits(xEventsCommRn4871, FLAG_RN4871_TX);
     return 0;

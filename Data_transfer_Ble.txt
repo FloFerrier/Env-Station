@@ -1,0 +1,24 @@
+Data transfer protocol:
+Embedded system <---> Python script
+
+Nb Bytes   Description
+  [1]       Msg Type
+     (0x00)  Infos/Alert
+     (0x01)  Time/Date
+     (0x02)  BME680 (Temperature, Humidity, Pressure)
+     (0x03)  LPS33W (Pressure, Temperature)
+     (0x04)  SGP30 (Gas : eCO2)
+     (0x05)  VEML7700 (Luminosity)
+  [1]       Payload Len (in bytes Max=255)
+  [N]       Payload
+     [4]    Timestamp
+     ...
+     [1]    Temperature
+     ...
+     [1]    Humidity
+     ...
+     [1]    Pressure
+     ...
+     [1]    Luminosity
+     ...
+  [N+1]     CRC ?
