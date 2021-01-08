@@ -57,18 +57,59 @@ int main(void)
   rtc_setup();
   leds_setup();
 
-  xTaskCreate(vTaskConsoleDebug, "CONSOLE DEBUG", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 1, NULL);
-  //xTaskCreate(vTaskSensorBme680, "SENSOR BME680", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, NULL);
-  //xTaskCreate(vTaskSensorLps33w, "SENSOR LPS33W", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, NULL);
-  //xTaskCreate(vTaskSensorVeml7700, "SENSOR VEML7700", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 2, NULL);
-  xTaskCreate(vTaskCommRn4871, "COMM RN4871", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 3, NULL);
-  xTaskCreate(vTaskCommIhm, "COMM IHM", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, NULL);
+  if(xTaskCreate(vTaskConsoleDebug, "CONSOLE DEBUG", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS)
+  {
+    uart2_send("[KERNEL] Error to create console debug task...\r\n");
+  }
+
+  if(xTaskCreate(vTaskSensorBme680, "SENSOR BME680", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS)
+  {
+    uart2_send("[KERNEL] Error to create bme680 task...\r\n");
+  }
+
+  if(xTaskCreate(vTaskSensorLps33w, "SENSOR LPS33W", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS)
+  {
+    uart2_send("[KERNEL] Error to create lps33w task...\r\n");
+  }
+
+  if(xTaskCreate(vTaskSensorVeml7700, "SENSOR VEML7700", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS)
+  {
+    uart2_send("[KERNEL] Error to create veml7700 task...\r\n");
+  }
+
+  if(xTaskCreate(vTaskCommRn4871, "COMM RN4871", configMINIMAL_STACK_SIZE * 4, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS)
+  {
+    uart2_send("[KERNEL] Error to create rn4871 task...\r\n");
+  }
+
+  if(xTaskCreate(vTaskCommIhm, "COMM IHM", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS)
+  {
+    uart2_send("[KERNEL] Error to create ihm task...\r\n");
+  }
 
   xQueueConsoleDebug = xQueueCreate(10, sizeof(char) * BUFFER_CONSOLE_LEN_MAX);
+  if(xQueueConsoleDebug == NULL)
+  {
+    uart2_send("[KERNEL] Error to create console debug queue...\r\n");
+  }
+
   xQueueCommUartRx = xQueueCreate(10, sizeof(char) * BUFFER_UART_LEN_MAX);
+  if(xQueueCommUartRx == NULL)
+  {
+    uart2_send("[KERNEL] Error to create rn4871 Rx queue...\r\n");
+  }
+
   xQueueCommUartTx = xQueueCreate(10, sizeof(char) * BUFFER_UART_LEN_MAX);
+  if(xQueueCommUartTx == NULL)
+  {
+    uart2_send("[KERNEL] Error to create rn4871 Tx queue...\r\n");
+  }
 
   xEventsCommRn4871 = xEventGroupCreate();
+  if(xEventsCommRn4871 == NULL)
+  {
+    uart2_send("[KERNEL] Error to create rn4871 events group...\r\n");
+  }
 
   vTaskStartScheduler();
   taskENABLE_INTERRUPTS();
@@ -127,6 +168,7 @@ void i2c1_setup(void)
   rcc_periph_clock_enable(RCC_I2C1);
   i2c_peripheral_disable(I2C1);
   i2c_reset(I2C1);
+  i2c_set_dutycycle(I2C1, I2C_CCR_DUTY_DIV2);
   i2c_set_speed(I2C1, i2c_speed_sm_100k, rcc_apb1_frequency / 1e6);
   i2c_peripheral_enable(I2C1);
 }
@@ -161,5 +203,5 @@ void vApplicationStackOverflowHook(TaskHandle_t xTask, signed char *pcTaskName)
   (void) xTask;
   (void) pcTaskName;
   uart2_send("[KERNEL] Stack overflow ...\r\n");
-  ihm_system_problem(true);
+  gpio_set(GPIOC, GPIO1);
 }
