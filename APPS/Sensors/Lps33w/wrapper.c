@@ -47,7 +47,7 @@ void vTaskSensorLps33w(void *pvParameters)
 {
   (void) pvParameters;
 
-  console_debug("[LPS33W] Start Task\r\n");
+  uart2_send("[LPS33W] Start Task\r\n");
 
   static stmdev_ctx_t sensor;
   sensor.write_reg = platform_write;
@@ -59,7 +59,7 @@ void vTaskSensorLps33w(void *pvParameters)
   lps33w_device_id_get(&sensor, &tmp);
   if (tmp != LPS33W_ID)
   {
-    console_debug("[LPS33W] Check ID: fail...\r\n");
+    uart2_send("[LPS33W] Check ID: fail...\r\n");
   }
 
   /* Restore default configuration */
@@ -68,7 +68,7 @@ void vTaskSensorLps33w(void *pvParameters)
   lps33w_reset_get(&sensor, &tmp);
   if (tmp != 1)
   {
-    console_debug("[LPS33W] Software reset: fail...\r\n");
+    uart2_send("[LPS33W] Software reset: fail...\r\n");
   }
 
   /* Enable Block Data Update */
@@ -110,12 +110,12 @@ void vTaskSensorLps33w(void *pvParameters)
       }
       else
       {
-        console_debug("[LPS33W] Get temperature: fail...\r\n");
+        uart2_send("[LPS33W] Get temperature: fail...\r\n");
       }
     }
     else
     {
-      console_debug("[LPS33W] Get pressure: fail...\r\n");
+      uart2_send("[LPS33W] Get pressure: fail...\r\n");
     }
   }
 }

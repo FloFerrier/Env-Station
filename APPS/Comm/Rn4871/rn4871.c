@@ -263,7 +263,7 @@ static int8_t rn4871_process_msg(struct ble_msg_s *msg)
       rtc_epoch_set(epoch);
       ihm_rtc_updated(true);
       _rtc_update = true;
-      console_debug("[RTC] Set Epoch: %d\r\n", (uint32_t)epoch);
+      uart2_send("[RTC] Set Epoch !\r\n");
       break;
     }
     default :
@@ -327,7 +327,7 @@ static void rn4871_process_resp(const char *buffer)
     int8_t ret = rn4871_decode_msg(buffer, &msg);
     if(ret != 0)
     {
-      console_debug("[RN4871] Error to decode msg...\r\n");
+      uart2_send("[RN4871] Error to decode msg...\r\n");
     }
     else
     {
@@ -349,13 +349,13 @@ int8_t rn4871_send_data(const struct ble_msg_params_s *msg_params)
     struct ble_msg_s msg;
     if(rn4871_create_msg(msg_params, &msg) != 0)
     {
-      console_debug("[RN4871] Error to create msg ...\r\n");
+      uart2_send("[RN4871] Error to create msg ...\r\n");
       return -1;
     }
 
     if(rn4871_encode_msg(&msg, buffer_uplink) != 0)
     {
-      console_debug("[RN4871] Error to encode msg ...\r\n");
+      uart2_send("[RN4871] Error to encode msg ...\r\n");
       return -1;
     }
 
@@ -369,7 +369,7 @@ void vTaskCommRn4871(void *pvParameters)
 {
   (void) pvParameters;
 
-  console_debug("[RN4871] Start task\r\n");
+  uart2_send("[RN4871] Start task\r\n");
 
   static char buffer[BUFFER_UART_LEN_MAX] = "";
 
@@ -377,7 +377,7 @@ void vTaskCommRn4871(void *pvParameters)
   uart3_send("\r\n");
   if(xQueueReceive(xQueueCommUartRx, buffer, pdMS_TO_TICKS(100)) != pdTRUE)
   {
-    console_debug("Tx <- $$$\r\n");
+    uart2_send("Tx <- $$$\r\n");
     uart3_send("$");
     vTaskDelay(pdMS_TO_TICKS(100));
     uart3_send("$$");
@@ -397,8 +397,6 @@ void vTaskCommRn4871(void *pvParameters)
       xEventGroupClearBits(xEventsCommRn4871, FLAG_RN4871_RX);
       if(xQueueReceive(xQueueCommUartRx, buffer, 100) == pdPASS)
       {
-        int data_size = strlen(buffer);
-        console_debug("Rx -> (%d) %s\r\n", data_size, buffer);
         rn4871_process_resp(buffer);
       }
     }
@@ -407,8 +405,7 @@ void vTaskCommRn4871(void *pvParameters)
       xEventGroupClearBits(xEventsCommRn4871, FLAG_RN4871_TX);
       if(xQueueReceive(xQueueCommUartTx, buffer_uart_tx, 100) == pdPASS)
       {
-        int buffer_size = strlen(buffer_uart_tx);
-        console_debug("Tx <- (%d) %s\r\n", buffer_size, buffer_uart_tx);
+        uart2_send("[RN4871] Send data\r\n");
         uart3_send(buffer_uart_tx);
       }
     }
