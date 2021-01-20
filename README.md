@@ -24,8 +24,5 @@ Based on Open Source tools for developping the embedded system.
 
 The prototype sends data to a python script which receive and store sensor datas.
 
-## Communication protocol
-To do
-
 ## Bugs
-- SGP30 sensor does not working with the i2c BSP.
+- SGP30 and VEML7700 sensor does not working with the i2c BSP.
