@@ -7,6 +7,8 @@
 
 #include "Debug/console.h"
 #include "Drivers/bme680.h"
+#include "Sensors/Rtc/wrapper.h"
+#include "Comm/Rn4871/rn4871.h"
 
 static void user_delay_ms(uint32_t period)
 {
@@ -44,8 +46,6 @@ void vTaskSensorBme680(void *pvParameters)
 {
   (void) pvParameters;
 
-  uart2_send("[BME680] Start Task !\r\n");
-
   static uint16_t meas_period;
 
   static struct bme680_dev sensor;
@@ -57,23 +57,15 @@ void vTaskSensorBme680(void *pvParameters)
   sensor.amb_temp = 25;
 
   /* Software reset */
-  if(bme680_soft_reset(&sensor) == BME680_OK)
+  if(bme680_soft_reset(&sensor) != BME680_OK)
   {
-    uart2_send("[BME680] Soft reset: ok\r\n");
-  }
-  else
-  {
-    uart2_send("[BME680] Soft reset: fail\r\n");
+    console_debug("[BME680] Soft reset: fail...\r\n");
   }
 
   /* Init sensor */
-  if(bme680_init(&sensor) == BME680_OK)
+  if(bme680_init(&sensor) != BME680_OK)
   {
-    uart2_send("[BME680] Init sensor: ok\r\n");
-  }
-  else
-  {
-    uart2_send("[BME680] Init sensor: fail\r\n");
+    console_debug("[BME680] Init sensor: fail...\r\n");
   }
 
   /* Configuration */
@@ -102,61 +94,49 @@ void vTaskSensorBme680(void *pvParameters)
                           BME680_FILTER_SEL;
 
   /* Set the desired sensor configuration */
-  if(bme680_set_sensor_settings(set_required_settings, &sensor) == BME680_OK)
+  if(bme680_set_sensor_settings(set_required_settings, &sensor) != BME680_OK)
   {
-    uart2_send("[BME680] Set desired configuration: ok\r\n");
-  }
-  else
-  {
-    uart2_send("[BME680] Set desired configuration: fail\r\n");
+    console_debug("[BME680] Set desired configuration: fail...\r\n");
   }
 
   /* Set the power mode */
-  if(bme680_set_sensor_mode(&sensor) == BME680_OK)
+  if(bme680_set_sensor_mode(&sensor) != BME680_OK)
   {
-    uart2_send("[BME680] Set power: ok\r\n");
-  }
-  else
-  {
-    uart2_send("[BME680] Set power: fail\r\n");
+    console_debug("[BME680] Set power: fail...\r\n");
   }
 
   bme680_get_profile_dur(&meas_period, &sensor);
 
   struct bme680_field_data data;
 
+  struct ble_msg_params_s msg_params;
+
   while(1)
   {
-    vTaskDelay(pdMS_TO_TICKS(2500)); // in ms
+    vTaskDelay(pdMS_TO_TICKS(30000)); // in ms
 
     user_delay_ms((uint16_t)meas_period); /* Delay till the measurement is ready */
 
     if(bme680_get_sensor_data(&data, &sensor) == BME680_OK)
     {
-      //data.temperature /= 100;
-      //data.pressure /= 100;
-      //data.humidity /= 1000;
-
-      uart2_send("[BME680] Get data: fail\r\n");
-
-      /*console_debug("[BME680] (%d) Temp: %d Press: %d Hum: %d\r\n", \
-       ++cnt, data.temperature, data.pressure, data.humidity);*/
+      msg_params.type = MSG_TYPE_BME680;
+      msg_params.timestamp = (uint32_t)rtc_epoch_get();
+      msg_params.temperature = (int8_t)(data.temperature / 100);
+      msg_params.pressure = (uint16_t)(data.pressure / 100);
+      msg_params.humidity = (uint8_t)(data.humidity / 1000);
+      rn4871_send_data(&msg_params);
     }
     else
     {
-      uart2_send("[BME680] Get data: fail\r\n");
+      console_debug("[BME680] Get data: fail...\r\n");
     }
 
     /* Trigger the next measurement if you would like to read data out continuously */
     if(sensor.power_mode == BME680_FORCED_MODE)
     {
-      if(bme680_set_sensor_mode(&sensor) == BME680_OK)
+      if(bme680_set_sensor_mode(&sensor) != BME680_OK)
       {
-        uart2_send("[BME680] Set sensor mode: ok\r\n");
-      }
-      else
-      {
-        uart2_send("[BME680] Set sensor mode: fail\r\n");
+        console_debug("[BME680] Set sensor mode: fail...\r\n");
       }
     }
   }
