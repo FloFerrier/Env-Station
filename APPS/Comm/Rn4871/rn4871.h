@@ -13,8 +13,6 @@ enum msg_type_ble_e {
   MSG_TYPE_TIME = 0x01,
   MSG_TYPE_BME680 = 0x02,
   MSG_TYPE_LPS33W = 0x03,
-  MSG_TYPE_SGP30 = 0x04,
-  MSG_TYPE_VEML7700 = 0x05,
 };
 
 struct ble_msg_params_s {

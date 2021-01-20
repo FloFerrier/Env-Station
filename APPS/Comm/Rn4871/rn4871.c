@@ -158,33 +158,25 @@ static int8_t rn4871_create_msg(const struct ble_msg_params_s *msg_params, struc
         msg->payload_len = 1;
         break;
       case MSG_TYPE_BME680:
-        msg->payload[0] = (uint8_t)(msg_params->timestamp >> 24);
-        msg->payload[1] = (uint8_t)(msg_params->timestamp >> 16);
-        msg->payload[2] = (uint8_t)(msg_params->timestamp >> 8);
-        msg->payload[3] = (uint8_t)(msg_params->timestamp >> 0);
+        msg->payload[0] = (uint8_t)((msg_params->timestamp & 0xFF000000) >> 24);
+        msg->payload[1] = (uint8_t)((msg_params->timestamp & 0x00FF0000) >> 16);
+        msg->payload[2] = (uint8_t)((msg_params->timestamp & 0x0000FF00) >> 8);
+        msg->payload[3] = (uint8_t)((msg_params->timestamp & 0x000000FF) >> 0);
         msg->payload[4] = (uint8_t)(msg_params->temperature);
-        msg->payload[5] = (uint8_t)(msg_params->pressure >> 8);
-        msg->payload[6] = (uint8_t)(msg_params->pressure >> 0);
+        msg->payload[5] = (uint8_t)((msg_params->pressure & 0xFF00) >> 8);
+        msg->payload[6] = (uint8_t)((msg_params->pressure & 0x00FF) >> 0);
         msg->payload[7] = (uint8_t)(msg_params->humidity);
         msg->payload_len = 8;
         break;
       case MSG_TYPE_LPS33W:
-        msg->payload[0] = (uint8_t)(msg_params->timestamp >> 24);
-        msg->payload[1] = (uint8_t)(msg_params->timestamp >> 16);
-        msg->payload[2] = (uint8_t)(msg_params->timestamp >> 8);
-        msg->payload[3] = (uint8_t)(msg_params->timestamp >> 0);
+        msg->payload[0] = (uint8_t)((msg_params->timestamp & 0xFF000000) >> 24);
+        msg->payload[1] = (uint8_t)((msg_params->timestamp & 0x00FF0000) >> 16);
+        msg->payload[2] = (uint8_t)((msg_params->timestamp & 0x0000FF00) >> 8);
+        msg->payload[3] = (uint8_t)((msg_params->timestamp & 0x000000FF) >> 0);
         msg->payload[4] = (uint8_t)(msg_params->temperature);
-        msg->payload[5] = (uint8_t)(msg_params->pressure >> 8);
-        msg->payload[6] = (uint8_t)(msg_params->pressure >> 0);
+        msg->payload[5] = (uint8_t)((msg_params->pressure & 0xFF00) >> 8);
+        msg->payload[6] = (uint8_t)((msg_params->pressure & 0x00FF) >> 0);
         msg->payload_len = 7;
-        break;
-      case MSG_TYPE_SGP30:
-        /* To do */
-        msg->payload_len = 0;
-        break;
-      case MSG_TYPE_VEML7700:
-        /* To do */
-        msg->payload_len = 0;
         break;
       default:
         return -1;
@@ -201,11 +193,11 @@ static int8_t rn4871_encode_msg(const struct ble_msg_s *msg, char *buffer)
   if((msg != NULL) && (buffer != NULL))
   {
     int idx = 0;
-    idx = snprintf(&(buffer[idx]), MSG_PAYLOAD_LEN_MAX, "DATA,%02X%02X", msg->type, msg->payload_len);
+    idx = snprintf(&(buffer[idx]), MSG_PAYLOAD_LEN_MAX, "%02X%02X", msg->type, msg->payload_len);
     for(int i = 0; i < msg->payload_len; i++)
     {
-      snprintf(&(buffer[idx]), MSG_PAYLOAD_LEN_MAX, "%02X", msg->payload[i]);
-      idx += i + 1;
+      snprintf(&(buffer[idx]), MSG_PAYLOAD_LEN_MAX - idx, "%02X", msg->payload[i]);
+      idx += 2;
     }
     return 0;
   }
@@ -214,34 +206,12 @@ static int8_t rn4871_encode_msg(const struct ble_msg_s *msg, char *buffer)
 
 static int8_t rn4871_decode_msg(const char *buffer, struct ble_msg_s *msg)
 {
-  static char tmp[3] = "";
-  static uint8_t val = 0;
-  char *ptr_end;
-  char *p = strchr(buffer, ',');
-  p++;
-  tmp[0] = *p;
-  p++;
-  tmp[1] = *p;
-  val = (uint8_t)strtol(tmp, &ptr_end, 16);
-  if(ptr_end == tmp)
+  if((msg != NULL) && (buffer != NULL))
   {
-    return -1;
-  }
-  msg->type = val;
-
-  p++;
-  tmp[0] = *p;
-  p++;
-  tmp[1] = *p;
-  val = (uint8_t)strtol(tmp, &ptr_end, 16);
-  if(ptr_end == tmp)
-  {
-    return -1;
-  }
-  msg->payload_len = val;
-
-  for(int i = 0; i < msg->payload_len; i++)
-  {
+    static char tmp[3] = "";
+    static uint8_t val = 0;
+    char *ptr_end;
+    char *p = strchr(buffer, ',');
     p++;
     tmp[0] = *p;
     p++;
@@ -251,10 +221,35 @@ static int8_t rn4871_decode_msg(const char *buffer, struct ble_msg_s *msg)
     {
       return -1;
     }
-    msg->payload[i] = val;
-  }
+    msg->type = val;
 
-  return 0;
+    p++;
+    tmp[0] = *p;
+    p++;
+    tmp[1] = *p;
+    val = (uint8_t)strtol(tmp, &ptr_end, 16);
+    if(ptr_end == tmp)
+    {
+      return -1;
+    }
+    msg->payload_len = val;
+
+    for(int i = 0; i < msg->payload_len; i++)
+    {
+      p++;
+      tmp[0] = *p;
+      p++;
+      tmp[1] = *p;
+      val = (uint8_t)strtol(tmp, &ptr_end, 16);
+      if(ptr_end == tmp)
+      {
+        return -1;
+      }
+      msg->payload[i] = val;
+    }
+    return 0;
+  }
+  return -1;
 }
 
 static int8_t rn4871_process_msg(struct ble_msg_s *msg)
