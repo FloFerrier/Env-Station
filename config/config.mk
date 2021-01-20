@@ -43,13 +43,15 @@ CROSS_COMPILE=arm-none-eabi-
 # compilation flags
 CC_OPT=-Os
 CFLAGS=-W -Wall -Wextra -Wstrict-prototypes -Wmissing-prototypes -Wshadow \
-  -Wpointer-arith -Wundef -Wcast-align -Wswitch-default -Wwrite-strings -Wbad-function-cast
+  -Wpointer-arith -Wundef -Wcast-align -Wswitch-default -Wwrite-strings \
+	-Wbad-function-cast
 CFLAGS_DEBUG=-g -gdwarf-4
 CC_DEFINES=
 
 # link flags
 LD_OPT=-flto
-LDFLAGS=-Wl,--gc-sections -nostartfiles -lc -lm -lnosys -Xlinker -Map=output.map
+LDFLAGS=-Wl,--print-memory-usage,--gc-sections -nostartfiles -lc -lm -lnosys -Xlinker -Map=output.map \
+  -fstack-usage
 
 # arch specific flags
 ARCH_FLAGS=-mcpu=$(MCU_CORE) -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -specs=nano.specs
