@@ -8,6 +8,8 @@
 
 #include "Debug/console.h"
 #include "Drivers/lps33w_reg.h"
+#include "Sensors/Rtc/wrapper.h"
+#include "Comm/Rn4871/rn4871.h"
 
 static int32_t platform_write(void *handle, uint8_t reg, uint8_t *bufp, uint16_t len);
 static int32_t platform_read(void *handle, uint8_t reg, uint8_t *bufp, uint16_t len);
@@ -55,13 +57,9 @@ void vTaskSensorLps33w(void *pvParameters)
 
   /* Check device ID */
   lps33w_device_id_get(&sensor, &tmp);
-  if (tmp == LPS33W_ID)
+  if (tmp != LPS33W_ID)
   {
-    console_debug("[LPS33W] Check ID: ok\r\n");
-  }
-  else
-  {
-    console_debug("[LPS33W] Check ID: error\r\n");
+    console_debug("[LPS33W] Check ID: fail...\r\n");
   }
 
   /* Restore default configuration */
@@ -70,11 +68,7 @@ void vTaskSensorLps33w(void *pvParameters)
   lps33w_reset_get(&sensor, &tmp);
   if (tmp != 1)
   {
-    console_debug("[LPS33W] Software reset: ok\r\n");
-  }
-  else
-  {
-    console_debug("[LPS33W] Software reset: error\r\n");
+    console_debug("[LPS33W] Software reset: fail...\r\n");
   }
 
   /* Enable Block Data Update */
@@ -85,30 +79,43 @@ void vTaskSensorLps33w(void *pvParameters)
   static uint8_t reg = 0x00;
   static uint32_t data_raw_pressure = 0x00000000;
   static int16_t data_raw_temperature = 0x0000;
-  static uint pressure_hPa = 0;
-  static int temperature_degC = 0;
+  static uint16_t pressure_hPa = 0;
+  static int8_t temperature_degC = 0;
+
+  struct ble_msg_params_s msg_params;
 
   while(1)
   {
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    vTaskDelay(pdMS_TO_TICKS(30000)); // in ms
     /* Trigger one shot data acquisition */
     lps33w_one_shoot_trigger_set(&sensor, PROPERTY_ENABLE);
+
     /* Wait data ready */
     lps33w_press_data_ready_get(&sensor, &reg);
-
     if(reg)
     {
       lps33w_pressure_raw_get(&sensor, &data_raw_pressure);
-      pressure_hPa = data_raw_pressure / 4096;
-      console_debug("[LPS33W] %d hPa\r\n", pressure_hPa);
-    }
+      pressure_hPa = (uint16_t)(data_raw_pressure / 4096);
 
-    lps33w_temp_data_ready_get(&sensor, &reg);
-    if(reg)
+      lps33w_temp_data_ready_get(&sensor, &reg);
+      if(reg)
+      {
+        lps33w_temperature_raw_get(&sensor, &data_raw_temperature);
+        temperature_degC = (int8_t)(data_raw_temperature / 100);
+        msg_params.type = MSG_TYPE_LPS33W;
+        msg_params.timestamp = (uint32_t)rtc_epoch_get();
+        msg_params.temperature = (int8_t)(temperature_degC);
+        msg_params.pressure = (uint16_t)(pressure_hPa);
+        rn4871_send_data(&msg_params);
+      }
+      else
+      {
+        console_debug("[LPS33W] Get temperature: fail...\r\n");
+      }
+    }
+    else
     {
-      lps33w_temperature_raw_get(&sensor, &data_raw_temperature);
-      temperature_degC = data_raw_temperature / 100;
-      console_debug("[LPS33W] %d degC\r\n", temperature_degC);
+      console_debug("[LPS33W] Get pressure: fail...\r\n");
     }
   }
 }
