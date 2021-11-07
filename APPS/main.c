@@ -15,7 +15,6 @@
 #include "Debug/console.h"
 #include "Sensors/Bme680/wrapper.h"
 #include "Sensors/Lps33w/wrapper.h"
-#include "Sensors/Veml7700/wrapper.h"
 #include "Sensors/Rtc/wrapper.h"
 #include "Comm/Rn4871/rn4871.h"
 #include "Comm/Ihm/leds.h"
@@ -32,7 +31,6 @@ extern EventGroupHandle_t xEventsCommRn4871;
 extern void vTaskConsoleDebug(void *pvParameters);
 extern void vTaskSensorBme680(void *pvParameters);
 extern void vTaskSensorLps33w(void *pvParameters);
-extern void vTaskSensorVeml7700(void *pvParameters);
 extern void vTaskCommRn4871(void *pvParameters);
 
 extern void vApplicationStackOverflowHook(TaskHandle_t xTask, signed char *pcTaskName);
@@ -71,11 +69,6 @@ int main(void)
   {
     uart2_send("[KERNEL] Error to create lps33w task...\r\n");
   }
-
-  /*if(xTaskCreate(vTaskSensorVeml7700, "SENSOR VEML7700", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS)
-  {
-    uart2_send("[KERNEL] Error to create veml7700 task...\r\n");
-  }*/
 
   if(xTaskCreate(vTaskCommRn4871, "COMM RN4871", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS)
   {
