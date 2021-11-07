@@ -15,6 +15,7 @@
 #include "Debug/console.h"
 #include "Sensors/Bme680/wrapper.h"
 #include "Sensors/Lps33w/wrapper.h"
+#include "Sensors/Ina219/wrapper.h"
 #include "Sensors/Rtc/wrapper.h"
 #include "Comm/Rn4871/rn4871.h"
 #include "Comm/Ihm/leds.h"
@@ -31,6 +32,7 @@ extern EventGroupHandle_t xEventsCommRn4871;
 extern void vTaskConsoleDebug(void *pvParameters);
 extern void vTaskSensorBme680(void *pvParameters);
 extern void vTaskSensorLps33w(void *pvParameters);
+extern void vTaskSensorIna219(void *pvParameters);
 extern void vTaskCommRn4871(void *pvParameters);
 
 extern void vApplicationStackOverflowHook(TaskHandle_t xTask, signed char *pcTaskName);
@@ -60,14 +62,19 @@ int main(void)
     uart2_send("[KERNEL] Error to create console debug task...\r\n");
   }
 
-  if(xTaskCreate(vTaskSensorBme680, "SENSOR BME680", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS)
+  /*if(xTaskCreate(vTaskSensorBme680, "SENSOR BME680", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS)
   {
     uart2_send("[KERNEL] Error to create bme680 task...\r\n");
-  }
+  }*/
 
-  if(xTaskCreate(vTaskSensorLps33w, "SENSOR LPS33W", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS)
+  /*if(xTaskCreate(vTaskSensorLps33w, "SENSOR LPS33W", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS)
   {
     uart2_send("[KERNEL] Error to create lps33w task...\r\n");
+  }*/
+
+  if(xTaskCreate(vTaskSensorIna219, "SENSOR INA219", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS)
+  {
+    uart2_send("[KERNEL] Error to create ina219 task...\r\n");
   }
 
   if(xTaskCreate(vTaskCommRn4871, "COMM RN4871", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS)
