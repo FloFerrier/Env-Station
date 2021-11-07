@@ -57,10 +57,10 @@ int main(void)
   rtc_setup();
   leds_setup();
 
-  /*if(xTaskCreate(vTaskConsoleDebug, "CONSOLE DEBUG", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS)
+  if(xTaskCreate(vTaskConsoleDebug, "CONSOLE DEBUG", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS)
   {
     uart2_send("[KERNEL] Error to create console debug task...\r\n");
-  }*/
+  }
 
   if(xTaskCreate(vTaskSensorBme680, "SENSOR BME680", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS)
   {
@@ -77,7 +77,7 @@ int main(void)
     uart2_send("[KERNEL] Error to create veml7700 task...\r\n");
   }*/
 
-  if(xTaskCreate(vTaskCommRn4871, "COMM RN4871", configMINIMAL_STACK_SIZE * 4, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS)
+  if(xTaskCreate(vTaskCommRn4871, "COMM RN4871", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS)
   {
     uart2_send("[KERNEL] Error to create rn4871 task...\r\n");
   }

@@ -107,6 +107,8 @@ void vTaskSensorLps33w(void *pvParameters)
         msg_params.temperature = (int8_t)(temperature_degC);
         msg_params.pressure = (uint16_t)(pressure_hPa);
         rn4871_send_data(&msg_params);
+        console_debug("[LPS33W] %d seconds %d degrees %d hPa\r\n",
+          msg_params.timestamp, msg_params.temperature, msg_params.pressure);
       }
       else
       {

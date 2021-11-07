@@ -331,8 +331,8 @@ static void rn4871_process_resp(const char *buffer)
     }
     else
     {
-      /*console_debug("[RN4871] Msg type: 0x%x Payload_len: 0x%x Payload: 0x%x%x%x%x\r\n",
-        msg->type, msg->payload_len, msg->payload[0], msg->payload[1], msg->payload[2], msg->payload[3]);*/
+      console_debug("[RN4871] Msg type: 0x%x Payload_len: 0x%x Payload: 0x%x%x%x%x\r\n",
+        msg.type, msg.payload_len, msg.payload[0], msg.payload[1], msg.payload[2], msg.payload[3]);
       rn4871_process_msg(&msg);
     }
   }

@@ -46,6 +46,8 @@ void vTaskSensorBme680(void *pvParameters)
 {
   (void) pvParameters;
 
+  console_debug("[BME680] Start Task\r\n");
+
   static uint16_t meas_period;
 
   static struct bme680_dev sensor;
@@ -125,6 +127,8 @@ void vTaskSensorBme680(void *pvParameters)
       msg_params.pressure = (uint16_t)(data.pressure / 100);
       msg_params.humidity = (uint8_t)(data.humidity / 1000);
       rn4871_send_data(&msg_params);
+      console_debug("[BME680] %d seconds %d degrees %d hPa %d rH\r\n",
+        msg_params.timestamp, msg_params.temperature, msg_params.pressure, msg_params.humidity);
     }
     else
     {
