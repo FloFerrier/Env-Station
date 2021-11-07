@@ -59,13 +59,13 @@ void vTaskSensorBme680(void *pvParameters)
   /* Software reset */
   if(bme680_soft_reset(&sensor) != BME680_OK)
   {
-    uart2_send("[BME680] Soft reset: fail...\r\n");
+    console_debug("[BME680] Soft reset: fail...\r\n");
   }
 
   /* Init sensor */
   if(bme680_init(&sensor) != BME680_OK)
   {
-    uart2_send("[BME680] Init sensor: fail...\r\n");
+    console_debug("[BME680] Init sensor: fail...\r\n");
   }
 
   /* Configuration */
@@ -96,13 +96,13 @@ void vTaskSensorBme680(void *pvParameters)
   /* Set the desired sensor configuration */
   if(bme680_set_sensor_settings(set_required_settings, &sensor) != BME680_OK)
   {
-    uart2_send("[BME680] Set desired configuration: fail...\r\n");
+    console_debug("[BME680] Set desired configuration: fail...\r\n");
   }
 
   /* Set the power mode */
   if(bme680_set_sensor_mode(&sensor) != BME680_OK)
   {
-    uart2_send("[BME680] Set power: fail...\r\n");
+    console_debug("[BME680] Set power: fail...\r\n");
   }
 
   bme680_get_profile_dur(&meas_period, &sensor);
@@ -128,7 +128,7 @@ void vTaskSensorBme680(void *pvParameters)
     }
     else
     {
-      uart2_send("[BME680] Get data: fail...\r\n");
+      console_debug("[BME680] Get data: fail...\r\n");
     }
 
     /* Trigger the next measurement if you would like to read data out continuously */
@@ -136,7 +136,7 @@ void vTaskSensorBme680(void *pvParameters)
     {
       if(bme680_set_sensor_mode(&sensor) != BME680_OK)
       {
-        uart2_send("[BME680] Set sensor mode: fail...\r\n");
+        console_debug("[BME680] Set sensor mode: fail...\r\n");
       }
     }
   }
