@@ -25,7 +25,7 @@ enum delay_unit_e {
 };
 
 static uint8_t pBufferLUT[EINK_TOTAL_SIZE_IN_BYTES + 1] = "";
-static uint8_t pImage[EINK_TOTAL_SIZE_IN_BYTES + 1] = "";
+static uint8_t pImageLUT[EINK_TOTAL_SIZE_IN_BYTES + 1] = "";
 
 static char pBufferString[EINK_STRING_LEN_MAX + 1] = "";
 static size_t uSizeString = 0;
@@ -41,6 +41,8 @@ struct uc8151d_t {
   uc8151d_gpios_in_fptr_t fctGpioBusy;
   uc8151d_com_fptr_t fctSpiSend;
   uc8151d_wait_fptr_t fctWaitDelay;
+  uint8_t *pBuffer;
+  uint32_t uSizeBuffer;
 };
 
 void Reset_Pin_Active(bool active);
@@ -56,7 +58,7 @@ void Eink_Wait_On_Busy(struct uc8151d_t *dev);
 void Eink_Hardware_Reset(struct uc8151d_t *dev);
 void Eink_Setup(struct uc8151d_t *dev);
 void Eink_Display_Clear(struct uc8151d_t *dev, uint8_t color);
-void Eink_Display(struct uc8151d_t *dev);
+void Eink_Display(struct uc8151d_t *dev, uint8_t *pImage, uint32_t uSizeImage);
 void Eink_Power_Off(struct uc8151d_t *dev);
 void Eink_Deep_Sleep(struct uc8151d_t *dev);
 
@@ -161,21 +163,21 @@ void Eink_Hardware_Reset(struct uc8151d_t *dev)
 
 void Eink_Setup(struct uc8151d_t *dev)
 {
-  if(NULL != dev)
+  if((NULL != dev) && (NULL != dev->pBuffer) && (dev->uSizeBuffer >= 4))
   {
     Eink_Send_Cmd(dev, 0x06);
-    pBufferLUT[0] = 0x17;
-    pBufferLUT[1] = 0x17;
-    pBufferLUT[2] = 0x17;
-    Eink_Send_Data(dev, pBufferLUT, 3);
+    dev->pBuffer[0] = 0x17;
+    dev->pBuffer[1] = 0x17;
+    dev->pBuffer[2] = 0x17;
+    Eink_Send_Data(dev, dev->pBuffer, 3);
     dev->fctWaitDelay(MILLISECONDS, 100);
 
     Eink_Send_Cmd(dev, 0x01);
-    pBufferLUT[0] = 0x03;
-    pBufferLUT[1] = 0x00;
-    pBufferLUT[2] = 0x2B;
-    pBufferLUT[3] = 0x2B;
-    Eink_Send_Data(dev, pBufferLUT, 4);
+    dev->pBuffer[0] = 0x03;
+    dev->pBuffer[1] = 0x00;
+    dev->pBuffer[2] = 0x2B;
+    dev->pBuffer[3] = 0x2B;
+    Eink_Send_Data(dev, dev->pBuffer, 4);
     dev->fctWaitDelay(MILLISECONDS, 100);
 
     Eink_Send_Cmd(dev, 0x04);
@@ -185,77 +187,89 @@ void Eink_Setup(struct uc8151d_t *dev)
     dev->fctWaitDelay(MILLISECONDS, 100);
 
     Eink_Send_Cmd(dev, 0x00);
-    pBufferLUT[0] = 0x9F;
-    Eink_Send_Data(dev, pBufferLUT, 1);
+    dev->pBuffer[0] = 0x9F;
+    Eink_Send_Data(dev, dev->pBuffer, 1);
     dev->fctWaitDelay(MILLISECONDS, 100);
 
     Eink_Send_Cmd(dev, 0x61);
-    pBufferLUT[0] = 0x68;
-    pBufferLUT[1] = 0x00;
-    pBufferLUT[2] = 0xD4;
-    Eink_Send_Data(dev, pBufferLUT, 3);
+    dev->pBuffer[0] = 0x68;
+    dev->pBuffer[1] = 0x00;
+    dev->pBuffer[2] = 0xD4;
+    Eink_Send_Data(dev, dev->pBuffer, 3);
     dev->fctWaitDelay(MILLISECONDS, 100);
 
     Eink_Send_Cmd(dev, 0x50);
-    pBufferLUT[0] = 0xD7;
-    Eink_Send_Data(dev, pBufferLUT, 1);
+    dev->pBuffer[0] = 0xD7;
+    Eink_Send_Data(dev, dev->pBuffer, 1);
     dev->fctWaitDelay(MILLISECONDS, 100);
   }
 }
 
 void Eink_Power_Off(struct uc8151d_t *dev)
 {
-  Eink_Send_Cmd(dev, 0x02);
+  if(NULL != dev)
+  {
+    Eink_Send_Cmd(dev, 0x02);
+  }
 }
 
 void Eink_Deep_Sleep(struct uc8151d_t *dev)
 {
-  Eink_Send_Cmd(dev, 0x07);
-  pBufferLUT[0] = 0xA5;
-  Eink_Send_Data(dev, pBufferLUT, 1);
+  if((NULL != dev) && (NULL != dev->pBuffer) && (dev->uSizeBuffer >= 1))
+  {
+    Eink_Send_Cmd(dev, 0x07);
+    dev->pBuffer[0] = 0xA5;
+    Eink_Send_Data(dev, dev->pBuffer, 1);
+  }
 }
 
 void Eink_Display_Clear(struct uc8151d_t *dev, uint8_t color)
 {
-  /* Data start transmission 1 */
-  Eink_Send_Cmd(dev, 0x10);
-  memset(pBufferLUT, (int)color, (size_t)EINK_TOTAL_SIZE_IN_BYTES);
-  Eink_Send_Data(dev, pBufferLUT, EINK_TOTAL_SIZE_IN_BYTES);
-  dev->fctWaitDelay(MILLISECONDS, 10);
+  if((NULL != dev) && (NULL != dev->pBuffer))
+  {
+    /* Data start transmission 1 */
+    Eink_Send_Cmd(dev, 0x10);
+    memset(dev->pBuffer, (int)color, (size_t)dev->uSizeBuffer);
+    Eink_Send_Data(dev, dev->pBuffer, dev->uSizeBuffer);
+    dev->fctWaitDelay(MILLISECONDS, 10);
 
-  /* Data start transmission 2 */
-  Eink_Send_Cmd(dev, 0x13);
-  memset(pBufferLUT, (int)color, (size_t)EINK_TOTAL_SIZE_IN_BYTES);
-  Eink_Send_Data(dev, pBufferLUT, EINK_TOTAL_SIZE_IN_BYTES);
-  dev->fctWaitDelay(MILLISECONDS, 100);
+    /* Data start transmission 2 */
+    Eink_Send_Cmd(dev, 0x13);
+    memset(dev->pBuffer, (int)color, (size_t)dev->uSizeBuffer);
+    Eink_Send_Data(dev, dev->pBuffer, dev->uSizeBuffer);
+    dev->fctWaitDelay(MILLISECONDS, 100);
 
-  /* Display refresh */
-  Eink_Send_Cmd(dev, 0x12);
-  dev->fctWaitDelay(MILLISECONDS, 100);
+    /* Display refresh */
+    Eink_Send_Cmd(dev, 0x12);
+    dev->fctWaitDelay(MILLISECONDS, 100);
 
-  Eink_Wait_On_Busy(dev);
-  dev->fctWaitDelay(MILLISECONDS, 100);
+    Eink_Wait_On_Busy(dev);
+    dev->fctWaitDelay(MILLISECONDS, 100);
+  }
 }
 
-void Eink_Display(struct uc8151d_t *dev)
+void Eink_Display(struct uc8151d_t *dev, uint8_t *pImage, uint32_t uSizeImage)
 {
-  /* Data start transmission 1 */
-  Eink_Send_Cmd(dev, 0x10);
-  memset(pBufferLUT, (int)0xFF, (size_t)EINK_TOTAL_SIZE_IN_BYTES);
-  Eink_Send_Data(dev, pBufferLUT, EINK_TOTAL_SIZE_IN_BYTES);
-  dev->fctWaitDelay(MILLISECONDS, 10);
+  if((NULL != dev) && (NULL != dev->pBuffer) && (NULL != pImage))
+  {
+    /* Data start transmission 1 */
+    Eink_Send_Cmd(dev, 0x10);
+    memset(dev->pBuffer, (int)0xFF, (size_t)dev->uSizeBuffer);
+    Eink_Send_Data(dev, dev->pBuffer, dev->uSizeBuffer);
+    dev->fctWaitDelay(MILLISECONDS, 10);
 
-  /* Data start transmission 2 */
-  Eink_Send_Cmd(dev, 0x13);
-  Eink_Send_Data(dev, pImage, EINK_TOTAL_SIZE_IN_BYTES);
-  dev->fctWaitDelay(MILLISECONDS, 100);
+    /* Data start transmission 2 */
+    Eink_Send_Cmd(dev, 0x13);
+    Eink_Send_Data(dev, pImage, uSizeImage);
+    dev->fctWaitDelay(MILLISECONDS, 100);
 
-  /* Display refresh */
-  Eink_Send_Cmd(dev, 0x12);
-  dev->fctWaitDelay(MILLISECONDS, 100);
+    /* Display refresh */
+    Eink_Send_Cmd(dev, 0x12);
+    dev->fctWaitDelay(MILLISECONDS, 100);
 
-  Eink_Wait_On_Busy(dev);
-  dev->fctWaitDelay(MILLISECONDS, 100);
+    Eink_Wait_On_Busy(dev);
+    dev->fctWaitDelay(MILLISECONDS, 100);
+  }
 }
 
 void vTaskIhmEink(void *pvParameters)
@@ -269,6 +283,8 @@ void vTaskIhmEink(void *pvParameters)
   dev.fctGpioReset = Reset_Pin_Active;
   dev.fctSpiSend = Spi_Send;
   dev.fctWaitDelay = Wait_Delay;
+  dev.pBuffer = pBufferLUT;
+  dev.uSizeBuffer = EINK_TOTAL_SIZE_IN_BYTES;
 
   Eink_Hardware_Reset(&dev);
   Wait_Delay(SECONDS, 2);
@@ -282,16 +298,16 @@ void vTaskIhmEink(void *pvParameters)
   console_debug("[EINK] Display clear\r\n");
   Wait_Delay(MILLISECONDS, 100);
 
-  memset(pImage, (int)WHITE, (size_t)EINK_TOTAL_SIZE_IN_BYTES);
-  Paint_NewImage(pImage, (uint16_t)104, (uint16_t)212, ROTATE_90, WHITE);
-  uSizeString = snprintf(pBufferString, EINK_STRING_LEN_MAX, "Temp: 18degC Hum: 51rH Pres: 1200hPa");
+  memset(pImageLUT, (int)WHITE, (size_t)EINK_TOTAL_SIZE_IN_BYTES);
+  Paint_NewImage(pImageLUT, (uint16_t)104, (uint16_t)212, ROTATE_90, WHITE);
+  uSizeString = snprintf(pBufferString, EINK_STRING_LEN_MAX, "LOL Temp: 18degC Hum: 51rH Pres: 1200hPa");
   if(0 != Paint_Draw_String((uint16_t)40, (uint16_t)20, pBufferString, uSizeString, &Font12, WHITE, BLACK))
   {
     console_debug("[EINK] Fail to display... \r\n");
   }
   else
   {
-    Eink_Display(&dev);
+    Eink_Display(&dev, pImageLUT, EINK_TOTAL_SIZE_IN_BYTES);
     console_debug("[EINK] Display [%d] %s\r\n", uSizeString, pBufferString);
   }
   Wait_Delay(MILLISECONDS, 100);
