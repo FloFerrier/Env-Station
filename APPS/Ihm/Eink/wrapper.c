@@ -30,24 +30,28 @@ static uint8_t pImage[EINK_TOTAL_SIZE_IN_BYTES + 1] = "";
 static char pBufferString[EINK_STRING_LEN_MAX + 1] = "";
 static size_t uSizeString = 0;
 
-typedef void (*uc8151d_gpios_fptr_t)(bool active);
+typedef void (*uc8151d_gpios_out_fptr_t)(bool active);
+typedef bool (*uc8151d_gpios_in_fptr_t)(void);
 typedef void (*uc8151d_com_fptr_t)(uint8_t data);
 typedef void (*uc8151d_wait_fptr_t)(enum delay_unit_e delay_unit, uint32_t value);
 
 struct uc8151d_t {
-  uc8151d_gpios_fptr_t fctGpioReset;
-  uc8151d_gpios_fptr_t fctGpioCmd;
+  uc8151d_gpios_out_fptr_t fctGpioReset;
+  uc8151d_gpios_out_fptr_t fctGpioCmd;
+  uc8151d_gpios_in_fptr_t fctGpioBusy;
   uc8151d_com_fptr_t fctSpiSend;
   uc8151d_wait_fptr_t fctWaitDelay;
 };
 
 void Reset_Pin_Active(bool active);
 void Cmd_Pin_Active(bool active);
+bool Busy_Pin_Active(void);
 void Wait_Delay(enum delay_unit_e delay_unit, uint32_t value);
 void Spi_Send(uint8_t data);
 
 void Eink_Send_Cmd(struct uc8151d_t *dev, uint8_t cmd);
 void Eink_Send_Data(struct uc8151d_t *dev, uint8_t* pData, uint32_t size);
+void Eink_Wait_On_Busy(struct uc8151d_t *dev);
 
 void Eink_Hardware_Reset(struct uc8151d_t *dev);
 void Eink_Setup(struct uc8151d_t *dev);
@@ -70,6 +74,15 @@ void Cmd_Pin_Active(bool active)
     gpio_clear(GPIOA, GPIO8);
   else
     gpio_set(GPIOA, GPIO8);
+}
+
+bool Busy_Pin_Active(void)
+{
+  uint16_t busy_pin = gpio_get(GPIOB, GPIO6);
+  if(busy_pin)
+    return false;
+  else
+    return true;
 }
 
 void Wait_Delay(enum delay_unit_e delay_unit, uint32_t value)
@@ -120,6 +133,19 @@ void Eink_Send_Data(struct uc8151d_t *dev, uint8_t* pData, uint32_t size)
   }
 }
 
+void Eink_Wait_On_Busy(struct uc8151d_t *dev)
+{
+  if(NULL != dev)
+  {
+    bool busy_pin = false;
+    do {
+      Eink_Send_Cmd(dev, 0x71);
+      busy_pin = dev->fctGpioBusy();
+      dev->fctWaitDelay(MILLISECONDS, 10);
+    } while(busy_pin);
+  }
+}
+
 void Eink_Hardware_Reset(struct uc8151d_t *dev)
 {
   if(NULL != dev)
@@ -155,12 +181,7 @@ void Eink_Setup(struct uc8151d_t *dev)
     Eink_Send_Cmd(dev, 0x04);
     dev->fctWaitDelay(MILLISECONDS, 100);
 
-    uint16_t busy_pin = 1;
-    do {
-      Eink_Send_Cmd(dev, 0x71);
-      busy_pin = gpio_get(GPIOB, GPIO6);
-      dev->fctWaitDelay(MILLISECONDS, 10);
-    } while(!busy_pin);
+    Eink_Wait_On_Busy(dev);
     dev->fctWaitDelay(MILLISECONDS, 100);
 
     Eink_Send_Cmd(dev, 0x00);
@@ -212,13 +233,7 @@ void Eink_Display_Clear(struct uc8151d_t *dev, uint8_t color)
   Eink_Send_Cmd(dev, 0x12);
   dev->fctWaitDelay(MILLISECONDS, 100);
 
-  /* Check busy pin */
-  uint16_t busy_pin = 1;
-  do {
-    Eink_Send_Cmd(dev, 0x71);
-    busy_pin = gpio_get(GPIOB, GPIO6);
-    dev->fctWaitDelay(MILLISECONDS, 10);
-  } while(!busy_pin);
+  Eink_Wait_On_Busy(dev);
   dev->fctWaitDelay(MILLISECONDS, 100);
 }
 
@@ -239,13 +254,7 @@ void Eink_Display(struct uc8151d_t *dev)
   Eink_Send_Cmd(dev, 0x12);
   dev->fctWaitDelay(MILLISECONDS, 100);
 
-  /* Check busy pin */
-  uint16_t busy_pin = 1;
-  do {
-    Eink_Send_Cmd(dev, 0x71);
-    busy_pin = gpio_get(GPIOB, GPIO6);
-    dev->fctWaitDelay(MILLISECONDS, 10);
-  } while(!busy_pin);
+  Eink_Wait_On_Busy(dev);
   dev->fctWaitDelay(MILLISECONDS, 100);
 }
 
@@ -255,6 +264,7 @@ void vTaskIhmEink(void *pvParameters)
   console_debug("[EINK] Start Task\r\n");
 
   struct uc8151d_t dev;
+  dev.fctGpioBusy = Busy_Pin_Active;
   dev.fctGpioCmd = Cmd_Pin_Active;
   dev.fctGpioReset = Reset_Pin_Active;
   dev.fctSpiSend = Spi_Send;
