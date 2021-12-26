@@ -9,6 +9,7 @@
 #include "Drivers/bme680.h"
 #include "Sensors/Rtc/wrapper.h"
 #include "Comm/Rn4871/rn4871.h"
+#include "Ihm/Eink/wrapper.h"
 
 static void user_delay_ms(uint32_t period)
 {
@@ -127,6 +128,7 @@ void vTaskSensorBme680(void *pvParameters)
       msg_params.pressure = (uint16_t)(data.pressure / 100);
       msg_params.humidity = (uint8_t)(data.humidity / 1000);
       rn4871_send_data(&msg_params);
+      eink_display_data(&msg_params);
       console_debug("[BME680] %d seconds %d degrees %d hPa %d rH\r\n",
         msg_params.timestamp, msg_params.temperature, msg_params.pressure, msg_params.humidity);
     }

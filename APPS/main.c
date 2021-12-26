@@ -28,6 +28,7 @@ uint32_t SystemCoreClock;
 extern QueueHandle_t xQueueConsoleDebug;
 extern QueueHandle_t xQueueCommUartTx;
 extern QueueHandle_t xQueueCommUartRx;
+extern QueueHandle_t xQueueSensorData;
 
 extern EventGroupHandle_t xEventsCommRn4871;
 
@@ -64,15 +65,15 @@ int main(void)
   eink_gpio_setup();
   spi2_setup();
 
-  if(xTaskCreate(vTaskConsoleDebug, "CONSOLE DEBUG", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS)
+  if(xTaskCreate(vTaskConsoleDebug, "CONSOLE DEBUG", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS)
   {
     uart2_send("[KERNEL] Error to create console debug task...\r\n");
   }
 
-  /*if(xTaskCreate(vTaskSensorBme680, "SENSOR BME680", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS)
+  if(xTaskCreate(vTaskSensorBme680, "SENSOR BME680", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS)
   {
     uart2_send("[KERNEL] Error to create bme680 task...\r\n");
-  }*/
+  }
 
   /*if(xTaskCreate(vTaskSensorLps33w, "SENSOR LPS33W", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS)
   {
@@ -110,6 +111,12 @@ int main(void)
   if(xQueueCommUartTx == NULL)
   {
     uart2_send("[KERNEL] Error to create rn4871 Tx queue...\r\n");
+  }
+
+  xQueueSensorData = xQueueCreate(10, sizeof(struct ble_msg_params_s));
+  if(xQueueSensorData == NULL)
+  {
+    uart2_send("[KERNEL] Error to create sensor data queue...\r\n");
   }
 
   xEventsCommRn4871 = xEventGroupCreate();

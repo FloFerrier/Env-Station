@@ -79,6 +79,11 @@ void Spi_Send(uint8_t data)
   spi_send(SPI2, data);
 }
 
+void eink_display_data(const struct ble_msg_params_s *msg_params)
+{
+  xQueueSend(xQueueSensorData, msg_params, 100);
+}
+
 void vTaskIhmEink(void *pvParameters)
 {
   (void) pvParameters;
@@ -105,31 +110,54 @@ void vTaskIhmEink(void *pvParameters)
   console_debug("[EINK] Display clear\r\n");
   Wait_Delay(MILLISECONDS, 100);
 
-  memset(pImageLUT, (int)WHITE, (size_t)EINK_TOTAL_SIZE_IN_BYTES);
-  Paint_NewImage(pImageLUT, (uint16_t)104, (uint16_t)212, ROTATE_90, WHITE);
-  uSizeString = snprintf(pBufferString, EINK_STRING_LEN_MAX, "LOL Temp: 18degC Hum: 51rH Pres: 1200hPa");
-  if(0 != Paint_Draw_String((uint16_t)40, (uint16_t)20, pBufferString, uSizeString, &Font12, WHITE, BLACK))
-  {
-    console_debug("[EINK] Fail to display... \r\n");
-  }
-  else
-  {
-    Eink_Display(&dev, pImageLUT, EINK_TOTAL_SIZE_IN_BYTES);
-    console_debug("[EINK] Display [%d] %s\r\n", uSizeString, pBufferString);
-  }
-  Wait_Delay(MILLISECONDS, 100);
-
   Eink_Power_Off(&dev);
   console_debug("[EINK] Power off\r\n");
   Wait_Delay(MILLISECONDS, 100);
 
-  Eink_Deep_Sleep(&dev);
-  console_debug("[EINK] Deep sleep\r\n");
-  Wait_Delay(MILLISECONDS, 100);
+  struct ble_msg_params_s msg_params;
 
   while(1)
   {
-    console_debug("[EINK] Loop !\r\n");
-    Wait_Delay(SECONDS, 10);
+    if(pdPASS == xQueueReceive(xQueueSensorData, &msg_params, 100))
+    {
+      Eink_Hardware_Reset(&dev);
+      Wait_Delay(MILLISECONDS, 200);
+      console_debug("[EINK] Hardware reset\r\n");
+
+      Eink_Setup(&dev);
+      Wait_Delay(MILLISECONDS, 200);
+      console_debug("[EINK] Setup finish\r\n");
+
+      Eink_Display_Clear(&dev, WHITE);
+      console_debug("[EINK] Display clear\r\n");
+      Wait_Delay(MILLISECONDS, 100);
+
+      memset(pImageLUT, (int)WHITE, (size_t)EINK_TOTAL_SIZE_IN_BYTES);
+      Paint_NewImage(pImageLUT, (uint16_t)104, (uint16_t)212, ROTATE_90, WHITE);
+
+      if(MSG_TYPE_BME680 == msg_params.type)
+      {
+        uSizeString = snprintf(pBufferString, EINK_STRING_LEN_MAX, "BME680 Timestamp : %ld seconds Temp: %d degC Hum: %d rH Pres: %d hPa",
+          msg_params.timestamp, msg_params.temperature, msg_params.humidity, msg_params.pressure);
+      }
+      else
+      {
+        uSizeString = snprintf(pBufferString, EINK_STRING_LEN_MAX, "No sensor data available");
+      }
+      if(0 != Paint_Draw_String((uint16_t)40, (uint16_t)20, pBufferString, uSizeString, &Font12, WHITE, BLACK))
+      {
+        console_debug("[EINK] Fail to display... \r\n");
+      }
+      else
+      {
+        Eink_Display(&dev, pImageLUT, EINK_TOTAL_SIZE_IN_BYTES);
+        console_debug("[EINK] Display [%d] %s\r\n", uSizeString, pBufferString);
+      }
+      Wait_Delay(MILLISECONDS, 100);
+
+      Eink_Power_Off(&dev);
+      console_debug("[EINK] Power off\r\n");
+      Wait_Delay(MILLISECONDS, 100);
+    }
   }
 }
