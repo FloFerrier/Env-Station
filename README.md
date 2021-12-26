@@ -21,7 +21,7 @@ Based on Open Source tools for developping the embedded system.
 - VEML7700 : Luminosity.
 ### Communication
 - RN4871 : BLE module with GATT protocol.
-
+- EINK : Display sensor data on the screen
 The prototype sends data to a python script which receive and store sensor datas.
 
 ## Bugs
