@@ -7,6 +7,7 @@
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/i2c.h>
+#include <libopencm3/stm32/spi.h>
 
 #include "FreeRTOS.h"
 #include "task.h"
@@ -18,6 +19,8 @@
 #include "Sensors/Rtc/wrapper.h"
 #include "Comm/Rn4871/rn4871.h"
 #include "Comm/Ihm/leds.h"
+
+#include "Ihm/Eink/wrapper.h"
 
 /* Necessary for FreeRTOS */
 uint32_t SystemCoreClock;
@@ -32,6 +35,7 @@ extern void vTaskConsoleDebug(void *pvParameters);
 extern void vTaskSensorBme680(void *pvParameters);
 extern void vTaskSensorLps33w(void *pvParameters);
 extern void vTaskCommRn4871(void *pvParameters);
+extern void vTaskIhmEink(void *pvParameters);
 
 extern void vApplicationStackOverflowHook(TaskHandle_t xTask, signed char *pcTaskName);
 
@@ -40,6 +44,8 @@ void uart3_setup(void);
 void i2c1_setup(void);
 void rtc_setup(void);
 void leds_setup(void);
+void eink_gpio_setup(void);
+void spi2_setup(void);
 
 int main(void)
 {
@@ -54,30 +60,37 @@ int main(void)
   i2c1_setup();
   rtc_setup();
   leds_setup();
+  eink_gpio_setup();
+  spi2_setup();
 
-  if(xTaskCreate(vTaskConsoleDebug, "CONSOLE DEBUG", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 1, NULL) != pdPASS)
+  if(xTaskCreate(vTaskConsoleDebug, "CONSOLE DEBUG", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS)
   {
     uart2_send("[KERNEL] Error to create console debug task...\r\n");
   }
 
-  if(xTaskCreate(vTaskSensorBme680, "SENSOR BME680", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS)
+  /*if(xTaskCreate(vTaskSensorBme680, "SENSOR BME680", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS)
   {
     uart2_send("[KERNEL] Error to create bme680 task...\r\n");
-  }
+  }*/
 
-  if(xTaskCreate(vTaskSensorLps33w, "SENSOR LPS33W", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS)
+  /*if(xTaskCreate(vTaskSensorLps33w, "SENSOR LPS33W", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 3, NULL) != pdPASS)
   {
     uart2_send("[KERNEL] Error to create lps33w task...\r\n");
-  }
+  }*/
 
-  if(xTaskCreate(vTaskCommRn4871, "COMM RN4871", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS)
+  /*if(xTaskCreate(vTaskCommRn4871, "COMM RN4871", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS)
   {
     uart2_send("[KERNEL] Error to create rn4871 task...\r\n");
-  }
+  }*/
 
   if(xTaskCreate(vTaskCommIhm, "COMM IHM", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS)
   {
     uart2_send("[KERNEL] Error to create ihm task...\r\n");
+  }
+
+  if(xTaskCreate(vTaskIhmEink, "IHM EINK", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS)
+  {
+    uart2_send("[KERNEL] Error to create eink task...\r\n");
   }
 
   xQueueConsoleDebug = xQueueCreate(10, sizeof(char) * BUFFER_CONSOLE_LEN_MAX);
@@ -189,6 +202,52 @@ void leds_setup(void)
   rcc_periph_clock_enable(RCC_GPIOC);
   gpio_mode_setup(GPIOC, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO0 | GPIO1);
   gpio_set_output_options(GPIOC, GPIO_OTYPE_PP, GPIO_OSPEED_2MHZ, GPIO0 | GPIO1);
+}
+
+void eink_gpio_setup(void)
+{
+  /* SPI2_MISO : PC_2
+   * SPI2_MOSI : PC_3
+   * SPI2_SCLK : PB_10
+   * CS        : PB_12
+   * D/C       : PA_8
+   * SRCS      : PA_9
+   * RST       : PC_7
+   * BUSY      : PB_6
+   * ENA       : PA_7
+   */
+  rcc_periph_clock_enable(RCC_GPIOA | RCC_GPIOB | RCC_GPIOC);
+
+  gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO10 | GPIO12);
+  gpio_set_af(GPIOB, GPIO_AF5, GPIO10 | GPIO12);
+
+  gpio_mode_setup(GPIOC, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO2 | GPIO3);
+  gpio_set_af(GPIOC, GPIO_AF5, GPIO2 | GPIO3);
+
+  gpio_mode_setup(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO7 | GPIO8 | GPIO9);
+  gpio_set_output_options(GPIOA, GPIO_OTYPE_PP, GPIO_OSPEED_2MHZ, GPIO7 | GPIO8 | GPIO9);
+
+  gpio_mode_setup(GPIOC, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO7);
+  gpio_set_output_options(GPIOC, GPIO_OTYPE_PP, GPIO_OSPEED_2MHZ, GPIO7);
+
+  gpio_mode_setup(GPIOB, GPIO_MODE_INPUT, GPIO_PUPD_NONE, GPIO6);
+
+  /* Desactive SRCS */
+  gpio_clear(GPIOA, GPIO9);
+  /* Desactive RST */
+  gpio_set(GPIOC, GPIO7);
+  /* Active ENA */
+  gpio_set(GPIOA, GPIO7);
+}
+
+void spi2_setup(void)
+{
+  rcc_periph_clock_enable(RCC_SPI2);
+  spi_disable(SPI2);
+  spi_init_master(SPI2, SPI_CR1_BAUDRATE_FPCLK_DIV_256,
+    SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE, SPI_CR1_CPHA_CLK_TRANSITION_1 , SPI_CR1_DFF_8BIT, SPI_CR1_MSBFIRST);
+  spi_enable_ss_output(SPI2);
+  spi_enable(SPI2);
 }
 
 void vApplicationStackOverflowHook(TaskHandle_t xTask, signed char *pcTaskName)
