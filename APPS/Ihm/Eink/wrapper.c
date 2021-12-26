@@ -33,11 +33,16 @@ static size_t uSizeString = 0;
 void Reset_Pin_Active(bool active);
 void Cmd_Pin_Active(bool active);
 void Wait_Delay(enum delay_unit_e delay_unit, uint32_t value);
+
 void Eink_Send_Cmd(uint8_t cmd);
 void Eink_Send_Data(uint8_t* pData, uint32_t size);
 
+void Eink_Hardware_Reset(void);
+void Eink_Setup(void);
 void Eink_Display_Clear(uint8_t color);
 void Eink_Display(void);
+void Eink_Power_Off(void);
+void Eink_Deep_Sleep(void);
 
 void Reset_Pin_Active(bool active)
 {
@@ -46,6 +51,7 @@ void Reset_Pin_Active(bool active)
   else
     gpio_clear(GPIOC, GPIO7);
 }
+
 void Cmd_Pin_Active(bool active)
 {
   if(active)
@@ -92,6 +98,74 @@ void Eink_Send_Data(uint8_t* pData, uint32_t size)
     }
     Wait_Delay(TICKS, 1);
   }
+}
+
+void Eink_Hardware_Reset(void)
+{
+  Reset_Pin_Active(true);
+  Wait_Delay(MILLISECONDS, 200);
+  Reset_Pin_Active(false);
+  Wait_Delay(MILLISECONDS, 200);
+  Reset_Pin_Active(true);
+  Wait_Delay(MILLISECONDS, 200);
+}
+
+void Eink_Setup(void)
+{
+  Eink_Send_Cmd(0x06);
+  pBufferLUT[0] = 0x17;
+  pBufferLUT[1] = 0x17;
+  pBufferLUT[2] = 0x17;
+  Eink_Send_Data(pBufferLUT, 3);
+  Wait_Delay(MILLISECONDS, 100);
+
+  Eink_Send_Cmd(0x01);
+  pBufferLUT[0] = 0x03;
+  pBufferLUT[1] = 0x00;
+  pBufferLUT[2] = 0x2B;
+  pBufferLUT[3] = 0x2B;
+  Eink_Send_Data(pBufferLUT, 4);
+  Wait_Delay(MILLISECONDS, 100);
+
+  Eink_Send_Cmd(0x04);
+  Wait_Delay(MILLISECONDS, 100);
+
+  uint16_t busy_pin = 1;
+  do {
+    Eink_Send_Cmd(0x71);
+    busy_pin = gpio_get(GPIOB, GPIO6);
+    Wait_Delay(MILLISECONDS, 10);
+  } while(!busy_pin);
+  Wait_Delay(MILLISECONDS, 100);
+
+  Eink_Send_Cmd(0x00);
+  pBufferLUT[0] = 0x9F;
+  Eink_Send_Data(pBufferLUT, 1);
+  Wait_Delay(MILLISECONDS, 100);
+
+  Eink_Send_Cmd(0x61);
+  pBufferLUT[0] = 0x68;
+  pBufferLUT[1] = 0x00;
+  pBufferLUT[2] = 0xD4;
+  Eink_Send_Data(pBufferLUT, 3);
+  Wait_Delay(MILLISECONDS, 100);
+
+  Eink_Send_Cmd(0x50);
+  pBufferLUT[0] = 0xD7;
+  Eink_Send_Data(pBufferLUT, 1);
+  Wait_Delay(MILLISECONDS, 100);
+}
+
+void Eink_Power_Off(void)
+{
+  Eink_Send_Cmd(0x02);
+}
+
+void Eink_Deep_Sleep(void)
+{
+  Eink_Send_Cmd(0x07);
+  pBufferLUT[0] = 0xA5;
+  Eink_Send_Data(pBufferLUT, 1);
 }
 
 void Eink_Display_Clear(uint8_t color)
@@ -155,67 +229,13 @@ void vTaskIhmEink(void *pvParameters)
 
   console_debug("[EINK] Start Task\r\n");
 
-  Reset_Pin_Active(true);
-  Wait_Delay(MILLISECONDS, 200);
-  Reset_Pin_Active(false);
-  Wait_Delay(MILLISECONDS, 200);
-  Reset_Pin_Active(true);
-  Wait_Delay(MILLISECONDS, 200);
+  Eink_Hardware_Reset();
   Wait_Delay(SECONDS, 2);
   console_debug("[EINK] Hardware reset\r\n");
 
-  uint16_t busy = gpio_get(GPIOB, GPIO6);
-  console_debug("[EINK] Busy pin : 0x%.2x\r\n", busy);
-
-  Eink_Send_Cmd(0x06);
-  pBufferLUT[0] = 0x17;
-  pBufferLUT[1] = 0x17;
-  pBufferLUT[2] = 0x17;
-  Eink_Send_Data(pBufferLUT, 3);
-  console_debug("[EINK] Booster soft start\r\n");
-  Wait_Delay(MILLISECONDS, 100);
-
-  Eink_Send_Cmd(0x01);
-  pBufferLUT[0] = 0x03;
-  pBufferLUT[1] = 0x00;
-  pBufferLUT[2] = 0x2B;
-  pBufferLUT[3] = 0x2B;
-  Eink_Send_Data(pBufferLUT, 4);
-  console_debug("[EINK] Power setting\r\n");
-  Wait_Delay(MILLISECONDS, 100);
-
-  Eink_Send_Cmd(0x04);
-  console_debug("[EINK] Power on\r\n");
-  Wait_Delay(MILLISECONDS, 100);
-
-  uint16_t busy_pin = 1;
-  do {
-    Eink_Send_Cmd(0x71);
-    busy_pin = gpio_get(GPIOB, GPIO6);
-    Wait_Delay(MILLISECONDS, 10);
-  } while(!busy_pin);
-  console_debug("[EINK] Check busy pin pass\r\n");
-  Wait_Delay(MILLISECONDS, 100);
-
-  Eink_Send_Cmd(0x00);
-  pBufferLUT[0] = 0x9F;
-  Eink_Send_Data(pBufferLUT, 1);
-  console_debug("[EINK] Panel setting\r\n");
-  Wait_Delay(MILLISECONDS, 100);
-
-  Eink_Send_Cmd(0x61);
-  pBufferLUT[0] = 0x68;
-  pBufferLUT[1] = 0x00;
-  pBufferLUT[2] = 0xD4;
-  Eink_Send_Data(pBufferLUT, 3);
-  console_debug("[EINK] Resolution setting\r\n");
-  Wait_Delay(MILLISECONDS, 100);
-
-  Eink_Send_Cmd(0x50);
-  pBufferLUT[0] = 0xD7;
-  Eink_Send_Data(pBufferLUT, 1);
-  console_debug("[EINK] Vcom & data interval setting\r\n");
-  Wait_Delay(MILLISECONDS, 100);
+  Eink_Setup();
+  Wait_Delay(MILLISECONDS, 200);
+  console_debug("[EINK] Setup finish\r\n");
 
   Eink_Display_Clear(WHITE);
   console_debug("[EINK] Display clear\r\n");
@@ -235,13 +255,11 @@ void vTaskIhmEink(void *pvParameters)
   }
   Wait_Delay(MILLISECONDS, 100);
 
-  Eink_Send_Cmd(0x02);
+  Eink_Power_Off();
   console_debug("[EINK] Power off\r\n");
   Wait_Delay(MILLISECONDS, 100);
 
-  Eink_Send_Cmd(0x07);
-  pBufferLUT[0] = 0xA5;
-  Eink_Send_Data(pBufferLUT, 1);
+  Eink_Deep_Sleep();
   console_debug("[EINK] Deep sleep\r\n");
   Wait_Delay(MILLISECONDS, 100);
 
