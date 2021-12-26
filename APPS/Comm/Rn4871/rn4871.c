@@ -12,7 +12,7 @@
 
 #include "Debug/console.h"
 #include "Sensors/Rtc/wrapper.h"
-#include "Comm/Ihm/leds.h"
+#include "Ihm/Leds/leds.h"
 
 #define RN4871_DELIMITER_STATUS ('%')
 #define MSG_PAYLOAD_LEN_MAX (255)

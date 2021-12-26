@@ -62,7 +62,7 @@ void ihm_rtc_updated(bool status)
   }
 }
 
-void vTaskCommIhm(void *pvParameters)
+void vTaskIhmLeds(void *pvParameters)
 {
   (void) pvParameters;
 

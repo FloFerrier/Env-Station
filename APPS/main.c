@@ -18,8 +18,8 @@
 #include "Sensors/Lps33w/wrapper.h"
 #include "Sensors/Rtc/wrapper.h"
 #include "Comm/Rn4871/rn4871.h"
-#include "Comm/Ihm/leds.h"
 
+#include "Ihm/Leds/leds.h"
 #include "Ihm/Eink/wrapper.h"
 
 /* Necessary for FreeRTOS */
@@ -35,6 +35,7 @@ extern void vTaskConsoleDebug(void *pvParameters);
 extern void vTaskSensorBme680(void *pvParameters);
 extern void vTaskSensorLps33w(void *pvParameters);
 extern void vTaskCommRn4871(void *pvParameters);
+extern void vTaskIhmLeds(void *pvParameters);
 extern void vTaskIhmEink(void *pvParameters);
 
 extern void vApplicationStackOverflowHook(TaskHandle_t xTask, signed char *pcTaskName);
@@ -83,9 +84,9 @@ int main(void)
     uart2_send("[KERNEL] Error to create rn4871 task...\r\n");
   }*/
 
-  if(xTaskCreate(vTaskCommIhm, "COMM IHM", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS)
+  if(xTaskCreate(vTaskIhmLeds, "IHM LEDS", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS)
   {
-    uart2_send("[KERNEL] Error to create ihm task...\r\n");
+    uart2_send("[KERNEL] Error to create leds task...\r\n");
   }
 
   if(xTaskCreate(vTaskIhmEink, "IHM EINK", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS)

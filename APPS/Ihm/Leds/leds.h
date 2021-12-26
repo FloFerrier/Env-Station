@@ -1,5 +1,5 @@
-#ifndef APPS_COMM_IHM_LEDS_H
-#define APPS_COMM_IHM_LEDS_H
+#ifndef APPS_IHM_LEDS_H
+#define APPS_IHM_LEDS_H
 
 #include <stdbool.h>
 
@@ -11,6 +11,6 @@ void ihm_ble_stream(bool status);
 void ihm_system_problem(bool status);
 void ihm_rtc_updated(bool status);
 
-void vTaskCommIhm(void *pvParameters);
+void vTaskIhmLeds(void *pvParameters);
 
-#endif /* APPS_COMM_IHM_LEDS_H */
+#endif /* APPS_IHM_LEDS_H */
